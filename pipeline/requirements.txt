@@ -11,3 +11,8 @@ pyyaml
 jsonschema
 pytest
 joblib
+earthaccess
+netCDF4
+h5netcdf
+h5py
+pyhdf
