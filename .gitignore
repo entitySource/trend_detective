@@ -1,0 +1,14 @@
+# Python
+pipeline/.venv/
+__pycache__/
+.pytest_cache/
+
+# Downloaded and intermediate data (PLAN-02 §4)
+data/
+
+# Generated contract output: regenerate with pipeline/scripts/make_mock.py or the real pipeline
+web/public/data/
+
+# Web
+node_modules/
+web/dist/

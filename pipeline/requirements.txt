@@ -1,0 +1,12 @@
+# Pip install for the Phase 0 pipeline (stats, contract, mock data, tests).
+# The full data pipeline also needs earthaccess, rioxarray/rasterio, regionmask and HDF4 support:
+# use environment.yml (conda) for those, since HDF4 and GDAL are painful to pip-install on Windows.
+numpy
+scipy
+xarray
+pymannkendall
+statsmodels
+pillow
+pyyaml
+jsonschema
+pytest

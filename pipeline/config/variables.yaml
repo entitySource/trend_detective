@@ -1,0 +1,229 @@
+# The 15-variable catalogue (docs/variables.md), checked against NASA CMR on 2026-10-26.
+# tier 1 = ships by 15 Nov; tier 2 = if on schedule; tier 3 = catalogue-only ("trend pending" in the UI).
+# expected_granules overrides the monthly count for products that are one file or daily (see scripts/check_datasets.py).
+window:
+  start: "2003-01"
+  end: "2025-12"
+grid_deg: 0.5
+fdr_alpha: 0.10
+min_years: 10
+seasons: [ANN, DJF, MAM, JJA, SON]
+
+variables:
+  # ---------- Tier 1 ----------
+  ndvi:
+    tier: 1
+    sphere: land
+    label: Vegetation greenness (NDVI)
+    product: MOD13C2
+    version: "061"
+    daac: LPCLOUD
+    var: CMG 0.05 Deg Monthly NDVI
+    units: "1"
+    trend_units: "NDVI/decade"
+    regrid: coarsen_10
+    mask: ndvi_mean_below_0.1
+    relative: false
+    palette: wet
+    validation: Chen et al. 2019, Nature Sustainability, Fig. 1 (China and India greening)
+  tws:
+    tier: 1
+    sphere: hydrology
+    label: Total water storage (GRACE)
+    product: TELLUS_GRAC-GRFO_MASCON_CRI_GRID_RL06.3_V4
+    version: RL06.3Mv04
+    daac: POCLOUD
+    var: lwe_thickness
+    units: cm
+    trend_units: "cm/decade"
+    regrid: none
+    mask: land
+    relative: false
+    palette: wet
+    expected_granules: 1
+    validation: Rodell et al. 2018, Nature, Fig. 1 (34 hotspot regions)
+    note: One file with all months; gap 2017-07 to 2018-05. Native resolution about 3 degrees despite the 0.5 degree grid.
+  aod:
+    tier: 1
+    sphere: atmosphere
+    label: Haze (aerosol optical depth)
+    product: MYD08_M3
+    version: "6.1"
+    daac: LAADS
+    var: AOD_550_Dark_Target_Deep_Blue_Combined_Mean_Mean
+    units: "1"
+    trend_units: "AOD/decade"
+    regrid: nearest_up_2
+    mask: none
+    relative: true
+    palette: haze
+    expected_granules: 277
+    validation: de Meij et al. 2012; Gupta et al. 2022 (Europe/N America down, South Asia up)
+    note: China rose until about 2008 then fell; a single 2003-2025 slope flattens it. Keep one granule per month.
+  t2m:
+    tier: 1
+    sphere: atmosphere
+    label: Air temperature (2 m)
+    product: M2TMNXSLV
+    version: "5.12.4"
+    daac: GES_DISC
+    var: T2M
+    units: K
+    trend_units: "°C/decade"
+    regrid: bilinear
+    mask: none
+    relative: false
+    palette: warm
+    validation: NASA GISTEMP v4 global mean trend
+  precip:
+    tier: 1
+    sphere: hydrology
+    label: Precipitation
+    product: GPM_3IMERGM
+    version: "07"
+    daac: GES_DISC
+    var: precipitation
+    units: mm/hr
+    trend_units: "mm/day per decade"
+    regrid: coarsen_5
+    mask: none
+    relative: true
+    min_climatology_mm_day: 0.1
+    palette: wet
+    expected_granules: 273
+    validation: GPCP v2.3 (no firm pixel-level target found)
+    note: Final V07 ends 2025-09. Expect few significant cells; that is the honest "is it significant?" lesson.
+
+  # ---------- Tier 2 ----------
+  lst:
+    tier: 2
+    sphere: land
+    label: Land surface temperature
+    product: MOD11C3
+    version: "061"
+    daac: LPCLOUD
+    var: LST_Day_CMG
+    units: K
+    trend_units: "°C/decade"
+    regrid: coarsen_10
+    mask: land
+    palette: warm
+  snow:
+    tier: 2
+    sphere: cryosphere
+    label: Snow cover
+    product: MOD10CM
+    version: "61"
+    daac: NSIDC_CPRD
+    var: Snow_Cover_Monthly_CMG
+    units: "%"
+    trend_units: "%/decade"
+    regrid: coarsen_10
+    mask: land
+    palette: wet
+    expected_granules: 273
+  soil:
+    tier: 2
+    sphere: hydrology
+    label: Soil moisture and evapotranspiration (GLDAS)
+    product: GLDAS_NOAH025_M
+    version: "2.1"
+    daac: GES_DISC
+    var: SoilMoi0_10cm_inst
+    units: kg/m2
+    trend_units: "kg/m2 per decade"
+    regrid: coarsen_2
+    mask: land
+    palette: wet
+    note: Replaces MERRA-2 GWETTOP. Also carries Evap_tavg for evapotranspiration.
+  seaice:
+    tier: 2
+    sphere: cryosphere
+    label: Sea ice concentration
+    product: NSIDC-0051
+    version: "2"
+    daac: NSIDC_CPRD
+    var: sea ice concentration
+    units: "%"
+    trend_units: "%/decade"
+    regrid: polar_stereo_to_latlon
+    mask: ocean
+    palette: wet
+    expected_granules: 17354
+    note: Daily + monthly mixed in CMR; use monthly files only. Polar grid needs regridding.
+  sst:
+    tier: 2
+    sphere: ocean
+    label: Sea surface temperature
+    product: MUR-JPL-L4-GLOB-v4.1
+    version: "4.1"
+    daac: POCLOUD
+    var: analysed_sst
+    units: K
+    trend_units: "°C/decade"
+    regrid: monthly_mean_then_coarsen
+    mask: ocean
+    palette: warm
+    expected_granules: 8402
+    note: Daily 0.01 degree (very large). Prefer a monthly SST product if one is available.
+
+  # ---------- Tier 3 (catalogue only) ----------
+  no2:
+    tier: 3
+    sphere: atmosphere
+    label: Nitrogen dioxide (OMI)
+    product: OMNO2d
+    version: "003"
+    daac: GES_DISC
+    var: ColumnAmountNO2TropCloudScreened
+    units: molecules/cm2
+    expected_granules: 7726
+    note: Starts 2004-10; daily, aggregate to monthly; OMI row anomaly after 2007.
+  ozone:
+    tier: 3
+    sphere: atmosphere
+    label: Total column ozone
+    product: OMTO3e
+    version: "003"
+    daac: GES_DISC
+    var: ColumnAmountO3
+    units: DU
+    expected_granules: 7722
+    note: Starts 2004-10; daily.
+  airs:
+    tier: 3
+    sphere: atmosphere
+    label: Upper-air temperature and CO2 (AIRS)
+    product: AIRS3STM
+    version: "7.0"
+    daac: GES_DISC
+    var: Temperature_A
+    units: K
+    expected_granules: 277
+    note: CO2 rises everywhere (no opposite sign); show stratospheric cooling vs tropospheric warming instead.
+  chlor:
+    tier: 3
+    sphere: ocean
+    label: Ocean chlorophyll
+    product: MODISA_L3m_CHL
+    version: "2022.0"
+    daac: OB_CLOUD
+    var: chlor_a
+    units: mg/m3
+    expected_granules: 26198
+    note: Mixed periods and resolutions in CMR; filter to monthly 9 km.
+  sealevel:
+    tier: 3
+    sphere: ocean
+    label: Sea level
+    product: NASA_SSH_REF_SIMPLE_GRID_V1
+    version: "1"
+    daac: POCLOUD
+    var: SLA
+    units: m
+    expected_granules: 1202
+    note: About 5-day files; aggregate to monthly.
+
+validation:
+  sea_ice_september: https://noaadata.apps.nsidc.org/NOAA/G02135/north/monthly/data/N_09_extent_v4.0.csv
+  gistemp_global: https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv

@@ -1,0 +1,26 @@
+# Full pipeline environment (Phase 1+). Create with:  conda env create -f environment.yml
+name: trend-detective
+channels: [conda-forge]
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - xarray
+  - dask
+  - netcdf4
+  - h5netcdf
+  - pyhdf
+  - rioxarray
+  - rasterio
+  - regionmask
+  - joblib
+  - matplotlib
+  - pillow
+  - pyyaml
+  - jsonschema
+  - statsmodels
+  - pytest
+  - pip
+  - pip:
+      - earthaccess
+      - pymannkendall
