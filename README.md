@@ -52,7 +52,33 @@ npm run build      # static site in web/dist (copy web/public/data alongside)
 
 The full Phase 1 pipeline needs HDF4 and GDAL. Use `conda env create -f pipeline/environment.yml` for that.
 
-## Known issues
+## Significance method (Phase 1 decision)
 
-- **Hamed–Rao can return NaN.** `pymannkendall.hamed_rao_modification_test` sometimes gives NaN on short series, because the variance correction goes negative. The mock just drops those regions. Phase 1 must decide how to handle it: cap the correction, or fall back to pre-whitening.
+The plan specified the Hamed–Rao modified Mann-Kendall test. A Monte Carlo check (`pipeline/tests/test_stats.py`) on 23-year series with lag-1 autocorrelation 0.5 and no real trend showed it barely corrects at this record length:
+
+| Method | False alarms (target 5%) | Power, 1σ/decade trend |
+|---|---|---|
+| Plain Mann-Kendall | 21% | 82% |
+| Hamed–Rao | 22% | 82% |
+| Trend-free pre-whitening | 26% | 79% |
+| Pre-whitening | 4% | 46% (0% on a 2σ/decade trend: it removes the trend itself) |
+| **Variance-corrected (default)** | **8%** | **76%** |
+
+**The default is the variance-corrected test** (`MK_METHOD = "vc"` in `td/stats.py`):
+- It takes the lag-1 autocorrelation of the Sen-detrended series and bias-corrects it for short records.
+- It then widens the Mann-Kendall variance by (1 + r₁)/(1 − r₁).
+- The plain Mann-Kendall p is stored alongside, for the Methods page.
+
+In the app, "not significant" means "not proven", not "no change".
+
+## Validation (Phase 1)
+
+`python scripts/validate.py` runs these checks on public CSVs, with no login needed:
+
+| Check | Ours | Published | Result |
+|---|---|---|---|
+| September Arctic sea ice, 1979–2026 | −11.56 %/decade | −11.6 %/decade ([NSIDC, Sept 2026](https://nsidc.org/sea-ice-today/analyses/aint-no-sunshine-when-shes-gone)) | **Pass** (tolerance ±1 percentage point) |
+| Global temperature, 2003–2025 | Waiting for MERRA-2 | GISTEMP v4: +0.275 °C/decade (Sen) | Pending |
+
+## Known issues
 - **MapLibre's worker needs an explicit URL.** `web/src/main.tsx` sets it by importing the worker file as a plain asset. Without that, bundled builds can't find the worker and the map stays empty.
