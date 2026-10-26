@@ -47,19 +47,22 @@ variables:
     tier: 1
     sphere: atmosphere
     label: Haze (aerosol optical depth)
-    product: MYD08_M3
-    version: "6.1"
-    daac: LAADS
-    var: AOD_550_Dark_Target_Deep_Blue_Combined_Mean_Mean
+    product: M2TMNXAER
+    version: "5.12.4"
+    daac: GES_DISC
+    var: TOTEXTTAU
     units: "1"
     trend_units: "AOD/decade"
-    regrid: nearest_up_2
+    regrid: bilinear
     mask: none
     relative: true
     palette: haze
-    expected_granules: 277
+    subset: opendap
     validation: de Meij et al. 2012; Gupta et al. 2022 (Europe/N America down, South Asia up)
-    note: China rose until about 2008 then fell; a single 2003-2025 slope flattens it. Keep one granule per month.
+    note: >-
+      MERRA-2 reanalysis total aerosol extinction at 550 nm (it assimilates MODIS AOD), chosen over
+      MODIS MYD08_M3 whose full record is ~102 GB. Model output: say so in the app. China rose until
+      about 2008 then fell; a single 2003-2025 slope flattens it.
   t2m:
     tier: 1
     sphere: atmosphere

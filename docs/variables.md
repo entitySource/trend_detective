@@ -8,7 +8,7 @@ Decided 26 Oct 2026 from two ECC deep-research passes. Every product below was c
 |---|---|---|---|---|---|---|
 | 1 | 1 | Vegetation (NDVI) | Land | MOD13C2 (061) | China and India greening; parts of Alaska, Central Asia and Iran browning | Chen et al. 2019, *Nat. Sustain.* Fig. 1 |
 | 1 | 2 | Total water storage | Hydrology | GRACE/GRACE-FO JPL mascon RL06.3 v4 | Drying in N India, the Middle East and California; wetting in the Okavango and N Great Plains | Rodell et al. 2018, *Nature* Fig. 1 |
-| 1 | 3 | Haze (AOD) | Atmosphere | MYD08_M3 (6.1) | Falling in Europe and N America; rising in South Asia; China reverses after about 2008 | de Meij 2012; Gupta 2022 |
+| 1 | 3 | Haze (AOD) | Atmosphere | MERRA-2 M2TMNXAER `TOTEXTTAU` (5.12.4), reanalysis that assimilates MODIS AOD | Falling in Europe and N America; rising in South Asia; China reverses after about 2008 | de Meij 2012; Gupta 2022 |
 | 1 | 4 | Air temperature | Atmosphere | MERRA-2 M2TMNXSLV (5.12.4) | Warming almost everywhere; North Atlantic "warming hole" | GISTEMP v4 |
 | 1 | 5 | Precipitation | Hydrology | GPM IMERG M (07, ends Sep 2025) | Wet gets wetter, dry gets drier (mostly not significant) | GPCP v2.3 |
 | 2 | 6 | Land surface temperature | Land | MOD11C3 (061) | Arctic warming vs irrigated-land cooling* | MERRA-2 T2M |
@@ -41,7 +41,8 @@ Decided 26 Oct 2026 from two ECC deep-research passes. Every product below was c
   - GRACE: Jul 2017 to May 2018 are masked.
   - IMERG: Oct to Dec 2025 are missing.
   - Mann-Kendall plus Sen's slope run on annual means that have enough valid months.
-- **One granule per month.** MYD08_M3 (277 files) and the mixed-period products need de-duplication or filtering.
+- **One granule per month.** The mixed-period products (sea ice, chlorophyll) need filtering to monthly files.
+- **Haze source (26 Oct):** switched from MODIS MYD08_M3 (≈102 GB) to MERRA-2 `TOTEXTTAU` through NASA's cloud OPeNDAP subsetting (≈0.2 GB). It's model output that assimilates MODIS, so the app labels it a reanalysis.
 - **Removed:** MERRA-2 GWETTOP. GLDAS soil moisture replaces it in Tier 2.
 - **Considered and excluded:**
   - Burned area (MCD64CMQ): not in CMR.

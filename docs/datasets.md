@@ -10,7 +10,7 @@ Analysis window: Jan 2003 – Dec 2025 = **276 months**.
 | Topsoil wetness | MERRA-2 `M2TMNXLND` (var `GWETTOP`) | 5.12.4 | C1276812856-GES_DISC | 1980 → present | 276 | OK |
 | Precipitation | GPM IMERG Final `GPM_3IMERGM` | 07 | C2723754851-GES_DISC | 1998 → **2025-09-30** | **273** | Ends Sep 2025 |
 | Vegetation (NDVI) | MODIS Terra `MOD13C2` | 061 | C2565788914-LPCLOUD | 2000-02 → present | 276 | OK |
-| Haze (AOD) | MODIS Aqua `MYD08_M3` | **6.1** | C1443775657-LAADS | 2002-07 → present | **277** | Version fixed; one extra granule |
+| Haze (AOD) | MERRA-2 `M2TMNXAER` (var `TOTEXTTAU`) | 5.12.4 | C1276812866-GES_DISC | 1980 → present | 276 | OK (replaced MODIS MYD08_M3 on 26 Oct; see below) |
 
 Validation sources (HTTP 200 on 25 Oct 2026):
 
@@ -36,19 +36,20 @@ Validation sources (HTTP 200 on 25 Oct 2026):
 |---|---|---|---|---|---|
 | NDVI (MOD13C2) | 106 MB | **29 GB** | 3600 × 7200 (0.05°) | NDVI; fill −3000; **value = raw ÷ 10000** | Process each file then delete it |
 | Water storage (GRACE) | 46 MB | **46 MB (one file)** | (time 259, 360, 720), 0.5° | cm; fill −99999; months **Apr 2002 – Jul 2026** | Read once; mask ice sheets (values down to −2242 cm) |
-| Haze (MYD08_M3) | **368 MB** (1,144 variables) | **≈102 GB** | 180 × 360 (1°) | unitless; fill −9999; **value = raw × 0.001** | Biggest download by far: process-and-delete, or subset (see below) |
+| Haze, MODIS MYD08_M3 (dropped) | 368 MB (1,144 variables) | ≈102 GB | 180 × 360 (1°) | unitless; fill −9999; value = raw × 0.001 | Too big for the timeline |
+| **Haze, MERRA-2 `TOTEXTTAU` (used)** | **0.73 MB subset** (84 MB full) | **≈0.2 GB** | (1, 361, 576), 0.5° × 0.625° | unitless; fill 1e15; July 2015 range 0.01–1.28 | Download through OPeNDAP, requesting only `TOTEXTTAU` |
 | Air temperature (MERRA-2) | 79 MB (94 variables) | **22 GB** | (1, 361, 576), 0.5° × 0.625° | K; fill 1e15 | Request only T2M through GES DISC's subsetting (OPeNDAP), so each file is about 1 MB |
 | Precipitation (IMERG) | 19 MB | **5.3 GB** | (1, **3600 lon**, 1800 lat), 0.1° | mm/hr; fill −9999.9 | **Transpose to (lat, lon)**; × 24 for mm/day; fields sit in the `Grid` group |
 
 **Gotchas found**
 
-1. **MYD08_M3 is the main cost.**
-   - **The problem:** it's about 102 GB for one variable, which is roughly 5 hours at 50 Mbps, and each file needs about 0.4 GB of free space while it's processed.
-   - **Option A (keep MODIS):** download, extract AOD, delete each file, and run it overnight.
-   - **Option B:** switch to MERRA-2 aerosol `M2TMNXAER` `TOTEXTTAU`. That's model data rather than satellite data, but tiny through subsetting.
-   - **Team decision needed.**
+1. **Decided: haze comes from MERRA-2, by subsetting.**
+   - The old GES DISC subsetting server (`goldsmr4…/opendap`) now returns **410 Gone**.
+   - The working route is NASA's cloud OPeNDAP. Each file's address is in its CMR record (RelatedUrls, type "OPENDAP DATA"). Add `.dap.nc4?dap4.ce=/TOTEXTTAU;/lat;/lon;/time` to request only those fields.
+   - It authenticates through `_netrc`, the same as other downloads.
+   - The same route should shrink MERRA-2 T2M (`/T2M`) from 22 GB to about 0.2 GB, but that hasn't been tested yet.
 2. **IMERG is stored longitude-first.** Transpose it, or every map will be rotated.
-3. **Searching by month can return the previous month's MYD08 file.** A July 2015 search returned the June file (day-of-year 152). The fetch step must match on each file's start date.
+3. **Searching by month can return the neighbouring month's file.** With MYD08, a July 2015 search returned the June file. The fetch step must match on each file's start date for every product.
 4. **GRACE now runs to Jul 2026.** Trends still use the common 2003–2025 window.
 
 The sample files are in `data/raw/sample/`, about 620 MB and gitignored. Delete them whenever you like.
