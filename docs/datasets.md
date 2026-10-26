@@ -28,13 +28,27 @@ Validation sources (HTTP 200 on 25 Oct 2026):
    - It's probably a reprocessed duplicate.
    - Before downloading, `fetch.py` must keep only one granule per month.
 
-## Still to check (needs an Earthdata login)
+## Sample-file check (26 Oct 2026, Tier 1)
 
-Everyone needs a free Earthdata account. Approve the GES DISC and LP DAAC applications in your Earthdata profile. Then, for **one granule of each product**, confirm these 4 things in xarray:
+`pipeline/scripts/sample_granules.py` downloaded one real file per dataset and opened it. All five open on Windows with pip packages; `pyhdf` handles HDF4 without needing conda.
 
-1. The variable name.
-2. The units: IMERG is expected in mm/hr, and MERRA-2 T2M in K.
-3. The fill value and scale factor.
-4. The file size, then multiply it by 276 to estimate the download time.
+| Variable | File size | Full record | Grid / layout | Units, fill, scale | What the pipeline must do |
+|---|---|---|---|---|---|
+| NDVI (MOD13C2) | 106 MB | **29 GB** | 3600 × 7200 (0.05°) | NDVI; fill −3000; **value = raw ÷ 10000** | Process each file then delete it |
+| Water storage (GRACE) | 46 MB | **46 MB (one file)** | (time 259, 360, 720), 0.5° | cm; fill −99999; months **Apr 2002 – Jul 2026** | Read once; mask ice sheets (values down to −2242 cm) |
+| Haze (MYD08_M3) | **368 MB** (1,144 variables) | **≈102 GB** | 180 × 360 (1°) | unitless; fill −9999; **value = raw × 0.001** | Biggest download by far: process-and-delete, or subset (see below) |
+| Air temperature (MERRA-2) | 79 MB (94 variables) | **22 GB** | (1, 361, 576), 0.5° × 0.625° | K; fill 1e15 | Request only T2M through GES DISC's subsetting (OPeNDAP), so each file is about 1 MB |
+| Precipitation (IMERG) | 19 MB | **5.3 GB** | (1, **3600 lon**, 1800 lat), 0.1° | mm/hr; fill −9999.9 | **Transpose to (lat, lon)**; × 24 for mm/day; fields sit in the `Grid` group |
 
-`MOD13C2` is HDF4. On Windows that needs `pyhdf`, or GDAL through conda. Check this first, because it's the most likely blocker.
+**Gotchas found**
+
+1. **MYD08_M3 is the main cost.**
+   - **The problem:** it's about 102 GB for one variable, which is roughly 5 hours at 50 Mbps, and each file needs about 0.4 GB of free space while it's processed.
+   - **Option A (keep MODIS):** download, extract AOD, delete each file, and run it overnight.
+   - **Option B:** switch to MERRA-2 aerosol `M2TMNXAER` `TOTEXTTAU`. That's model data rather than satellite data, but tiny through subsetting.
+   - **Team decision needed.**
+2. **IMERG is stored longitude-first.** Transpose it, or every map will be rotated.
+3. **Searching by month can return the previous month's MYD08 file.** A July 2015 search returned the June file (day-of-year 152). The fetch step must match on each file's start date.
+4. **GRACE now runs to Jul 2026.** Trends still use the common 2003–2025 window.
+
+The sample files are in `data/raw/sample/`, about 620 MB and gitignored. Delete them whenever you like.
