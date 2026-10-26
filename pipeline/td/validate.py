@@ -83,6 +83,22 @@ def gistemp_trend(years: np.ndarray, vals: np.ndarray, start: int = 2003, end: i
     return {"senPerDecade": s["slopePerDecade"], "olsPerDecade": np.polyfit(years[sel], vals[sel], 1)[0] * 10, "p": s["p"], "n": s["n"]}
 
 
+def merra_global_trend(start: int = 2003, end: int = 2025) -> dict | None:
+    """Area-weighted global annual mean of the regridded MERRA-2 T2M (data/interim/t2m.npz), if fetched."""
+    path = ROOT / "data" / "interim" / "t2m.npz"
+    if not path.exists():
+        return None
+    from .fetch import LATS
+
+    d = np.load(path)
+    cube, years = d["data"], np.array([int(m[:4]) for m in d["months"]])
+    w = np.cos(np.radians(LATS))[:, None] * np.ones(cube.shape[2])
+    glob = np.array([np.nansum(f * w) / np.nansum(w * np.isfinite(f)) for f in cube])
+    yrs = np.arange(start, end + 1)
+    s = series_stats(np.array([glob[years == y].mean() for y in yrs]), yrs)
+    return {"senPerDecade": s["slopePerDecade"], "p": s["p"], "pOriginal": s["pOriginal"]}
+
+
 def run(out: Path, published_sea_ice_pct: float | None = None) -> dict:
     cfg = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))["validation"]
     ice = sea_ice_trend(*parse_sea_ice(_download(cfg["sea_ice_september"], "N_09_extent_v4.0.csv")))
@@ -93,6 +109,17 @@ def run(out: Path, published_sea_ice_pct: float | None = None) -> dict:
     else:
         ok = abs(ice["olsPctPerDecade"] - published_sea_ice_pct) <= 1
         ice_check = {"status": "pass" if ok else "fail", "published": published_sea_ice_pct}
+    merra = merra_global_trend()
+    gis_note = f"GISTEMP Sen slope over {gis['n']} years (OLS {gis['olsPerDecade']:.3f})."
+    if merra is None:
+        gis_check = {"status": "pending", "note": gis_note + " MERRA-2 value added once T2M is fetched."}
+    else:
+        ok = abs(merra["senPerDecade"] - gis["senPerDecade"]) <= 0.05
+        gis_check = {
+            "status": "pass" if ok else "fail",
+            "ours": merra["senPerDecade"],
+            "note": gis_note + f" MERRA-2 p={merra['p']:.3g} (plain MK {merra['pOriginal']:.3g}).",
+        }
     result = {
         "checks": [
             {
@@ -106,11 +133,10 @@ def run(out: Path, published_sea_ice_pct: float | None = None) -> dict:
             {
                 "id": "gistemp",
                 "name": "Global temperature trend 2003-2025: MERRA-2 T2M vs GISTEMP v4",
-                "status": "pending",
                 "published": gis["senPerDecade"],
                 "tolerance": 0.05,
                 "units": "°C/decade",
-                "note": f"GISTEMP Sen slope over {gis['n']} years (OLS {gis['olsPerDecade']:.3f}). MERRA-2 value added once T2M is processed.",
+                **gis_check,
             },
             {"id": "aod-signs", "name": "Haze falls over eastern China, rises over the Indo-Gangetic Plain", "status": "pending"},
             {"id": "ndvi-signs", "name": "Greening over China and India (Chen et al. 2019)", "status": "pending"},
