@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -154,19 +155,43 @@ def _read_ndvi(path: Path, var: str) -> np.ndarray:
         sd.end()
 
 
-def fetch_files(name: str, v: dict, keys: list[str], reader, batch: int = 4) -> None:
-    """Download a few files at a time, reduce each to 0.5°, delete the originals."""
+def _filename(g) -> str:
+    return Path(g.data_links()[0]).name
+
+
+def fetch_files(name: str, v: dict, keys: list[str], reader, batch: int = 4, retries: int = 3) -> None:
+    """Download a few files at a time, reduce each to 0.5°, delete the originals.
+
+    Files are matched to months by name, so a failed download can never shift data onto the wrong month;
+    a batch with missing files is retried, and months still missing are reported (rerun to resume).
+    """
     todo = sorted((k, g) for k, g in _granules(v, keys).items() if k not in _done(name))
+    failed: list[str] = []
     for i in range(0, len(todo), batch):
-        chunk = todo[i : i + batch]
-        tmp = Path(tempfile.mkdtemp(prefix=f"td-{name}-"))
-        try:
-            paths = earthaccess.download([g for _, g in chunk], local_path=str(tmp), show_progress=False)
-            for (k, _), p in zip(chunk, sorted(paths, key=lambda s: Path(s).name)):
-                _save(name, k, reader(Path(p), v["var"]))
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
+        pending = list(todo[i : i + batch])
+        for attempt in range(retries):
+            tmp = Path(tempfile.mkdtemp(prefix=f"td-{name}-"))
+            try:
+                try:
+                    paths = earthaccess.download([g for _, g in pending], local_path=str(tmp), show_progress=False)
+                except Exception as e:  # network blips: retry the batch
+                    print(f"  {name}: download error ({type(e).__name__}), retry {attempt + 1}/{retries}", flush=True)
+                    paths = []
+                by_name = {Path(p).name: Path(p) for p in paths}
+                for k, g in list(pending):
+                    p = by_name.get(_filename(g))
+                    if p is not None and p.exists():
+                        _save(name, k, reader(p, v["var"]))
+                        pending.remove((k, g))
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+            if not pending:
+                break
+            time.sleep(10 * (attempt + 1))
+        failed += [k for k, _ in pending]
         print(f"  {name}: {min(i + batch, len(todo))}/{len(todo)} months", flush=True)
+    if failed:
+        print(f"  {name}: {len(failed)} months failed after retries: {failed}. Rerun to resume.", flush=True)
 
 
 def fetch_grace(name: str, v: dict, keys: list[str]) -> None:
