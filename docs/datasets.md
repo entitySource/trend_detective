@@ -53,3 +53,15 @@ Validation sources (HTTP 200 on 25 Oct 2026):
 4. **GRACE now runs to Jul 2026.** Trends still use the common 2003–2025 window.
 
 The sample files are in `data/raw/sample/`, about 620 MB and gitignored. Delete them whenever you like.
+
+## Tier 1 fetch results (27 Oct 2026)
+
+`pipeline/scripts/fetch.py all` regridded every Tier 1 dataset to 0.5° monthly fields in `data/interim/{var}.npz` (gitignored; rerun to rebuild, the script resumes).
+
+| Variable | Months filled | Time | Sanity check |
+|---|---|---|---|
+| Air temperature (T2M) | 276 / 276 | minutes (OPeNDAP) | Global trend 0.206 °C/decade vs GISTEMP 0.275: **fails** the ±0.05 check (MERRA-2 p=0.22 under vc) |
+| Haze (TOTEXTTAU) | 276 / 276 | minutes (OPeNDAP) | Indo-Gangetic rise and Europe fall significant; E China fall not significant |
+| Precipitation (IMERG) | 273 / 273 (ends Sep 2025) | 2.8 min | Global mean 2.76 mm/day; wettest band 6.25°N |
+| Vegetation (NDVI) | 276 / 276 | 128 min | Range −0.2 to 1.0. Greening: China +0.033/decade (p=0.010), India +0.037/decade (p=0.0002), as in Chen et al. 2019 |
+| Water storage (GRACE) | 243 / 276 (GRACE gap 2017–18) | < 1 min | N India −24 cm/decade (p=0.04), California −13 (p=0.01), as in Rodell et al. 2018; Okavango flat (check 2002–2016 window) |
