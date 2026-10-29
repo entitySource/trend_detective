@@ -65,3 +65,22 @@ The sample files are in `data/raw/sample/`, about 620 MB and gitignored. Delete 
 | Precipitation (IMERG) | 273 / 273 (ends Sep 2025) | 2.8 min | Global mean 2.76 mm/day; wettest band 6.25°N |
 | Vegetation (NDVI) | 276 / 276 | 128 min | Range −0.2 to 1.0. Greening: China +0.033/decade (p=0.010), India +0.037/decade (p=0.0002), as in Chen et al. 2019 |
 | Water storage (GRACE) | 243 / 276 (GRACE gap 2017–18) | < 1 min | N India −24 cm/decade (p=0.04), California −13 (p=0.01), as in Rodell et al. 2018; Okavango flat (check 2002–2016 window) |
+
+## Tier 2/3 fetch results and checks (29 Oct 2026)
+
+Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`pipeline/scripts/check_tier23.py`). NO2 is still downloading.
+
+| Variable | Months | Check | Result | Verdict |
+|---|---|---|---|---|
+| Sea level (NASA-SSH, `ssha`) | 276 | Global mean rise, NASA ≈ 3.3–4 mm/yr | **+3.4 mm/yr** (p < 0.0001) | Pass |
+| Sea ice (NSIDC-0051) | 276 | Arctic September decline | −2.7 %-pts/decade (p = 0.05) | Pass (sign; slower after 2007, as published) |
+| Ozone (OMI) | 255 (from Oct 2004) | Near-global ozone roughly flat | **+3.7 DU/decade** (p < 0.0001) | **Suspect**: likely OMI row-anomaly drift; flag before showing |
+| Ozone (OMI) | | Antarctic October hole recovery | −4 DU/decade (p = 0.65) | Not significant; noisy |
+| Sea-surface temp. (MODIS-Aqua day) | 276 | Ocean warming | +0.27 °C/decade (p = 0.07) | Pass (sign, size) |
+| Land surface temp. (MOD11C3 day) | 276 | Arctic land warming fastest | Arctic +0.34 K/decade (p = 0.05); global +0.10 (p = 0.66) | Pass (pattern) |
+| Snow cover (MOD10CM) | 271 of 273 | NH spring snow decline | −0.5 %-pts/decade (p = 0.39) | Weak; not significant |
+| Soil moisture (GLDAS 2.1) | 276 | No firm reference | Global topsoil drying −0.45 kg/m²/decade (p = 0.0001) | **Caution**: GLDAS 2.1 forcing changes can create trends |
+| Stratosphere 50 hPa (AIRS) | 276 | Cooling | Flat (−0.01 K/decade, p = 0.82) | **Fails the story**: 50 hPa cooling stalled after 2000 as ozone recovered; 10 hPa should show it |
+| Chlorophyll (MODIS-Aqua) | 276 | No robust global trend expected | +0.014 mg/m³/decade (p = 0.28) | Pass (flat) |
+
+Missing months: snow 2025-09 and 2025-12 (source files unreadable after 3 tries); IMERG ends 2025-09; OMI starts 2004-10.
