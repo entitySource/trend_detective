@@ -68,7 +68,7 @@ The sample files are in `data/raw/sample/`, about 620 MB and gitignored. Delete 
 
 ## Tier 2/3 fetch results and checks (29 Oct 2026)
 
-Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`pipeline/scripts/check_tier23.py`). NO2 is still downloading.
+Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`pipeline/scripts/check_tier23.py`). NO2 finished on 29 Oct (412 min, no failed months).
 
 | Variable | Months | Check | Result | Verdict |
 |---|---|---|---|---|
@@ -82,6 +82,8 @@ Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`p
 | Soil moisture (GLDAS 2.1) | 276 | No firm reference | Global topsoil drying −0.45 kg/m²/decade (p = 0.0001) | **Caution**: GLDAS 2.1 forcing changes can create trends |
 | Stratosphere 10 hPa (AIRS) | 276 | CO2 cooling, published ≈ −0.5 to −0.6 K/decade | **−0.58 K/decade** (p < 0.0001); tropics −0.67 (p = 0.001) | Pass. Switched from 50 hPa on 29 Oct: 50 hPa was flat (−0.01 K/decade, p = 0.82) because ozone recovery offsets CO2 there |
 | Chlorophyll (MODIS-Aqua) | 276 | No robust global trend expected | +0.014 mg/m³/decade (p = 0.28) | Pass (flat) |
+| NO2 (OMI, tropospheric) | 255 (from Oct 2004) | Falling over Europe and the US (Krotkov et al. 2016) | Europe −0.33, eastern US −0.55 ×10¹⁵ molec/cm²/decade (p < 0.002) | Pass |
+| NO2 (OMI) | | Eastern China rose to ~2011, then fell; India rising | E China −1.8 (p = 0.42); India +0.21 (p = 0.29) | Expected: a rise-then-fall is not a single trend; India's direction right but not significant |
 
 Missing months: snow 2025-09 and 2025-12 (source files unreadable after 3 tries); IMERG ends 2025-09; OMI starts 2004-10.
 

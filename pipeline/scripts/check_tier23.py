@@ -45,3 +45,6 @@ for n in (sys.argv[1:] or ['seaice','sealevel','snow','lst','soil','airs','ozone
         trend('N Atlantic SST (20-60N, 80W-0)',box(c,60,20,-80,0),yrs,mos,None,1,'degC')
     if n=='chlor':
         trend('Global ocean chlorophyll (60S-60N)',box(c,60,-60),yrs,mos,None,1,'mg/m3')
+    if n=='no2':
+        for name,b in [('Europe',(60,40,-10,30)),('Eastern US',(45,30,-90,-70)),('Eastern China',(40,28,110,122)),('Indo-Gangetic Plain',(30,22,75,88)),('Middle East',(35,20,40,60))]:
+            trend(f'NO2 {name}',box(c,*b),yrs,mos,None,1e-15,'1e15 molec/cm2')
