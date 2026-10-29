@@ -130,7 +130,7 @@ variables:
     tier: 2
     sphere: hydrology
     label: Soil moisture and evapotranspiration (GLDAS)
-    caution: "GLDAS 2.1 changed its input forcing over time, which can create artificial trends; the global drying signal is not confirmed by an independent dataset."
+    caution: "Not confirmed by MERRA-2: GLDAS shows drying over 69% of land, MERRA-2 over 42%, and the two agree in sign on only 61% of land. Mediterranean and Amazon drying appear in both; the global drying and Sahel/southern Africa trends do not."
     product: GLDAS_NOAH025_M
     version: "2.1"
     daac: GES_DISC

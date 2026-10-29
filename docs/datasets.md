@@ -84,3 +84,23 @@ Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`p
 | Chlorophyll (MODIS-Aqua) | 276 | No robust global trend expected | +0.014 mg/m³/decade (p = 0.28) | Pass (flat) |
 
 Missing months: snow 2025-09 and 2025-12 (source files unreadable after 3 tries); IMERG ends 2025-09; OMI starts 2004-10.
+
+### Soil moisture cross-check: GLDAS 2.1 vs MERRA-2 GWETTOP (29 Oct 2026)
+
+`pipeline/scripts/crosscheck_soil.py` fetched MERRA-2 topsoil wetness (`M2TMNXLND` `GWETTOP`, 276 months, OPeNDAP) and compared 2003–2025 annual trends on GLDAS land cells.
+
+- Per-cell trend maps: sign agreement on **61%** of land area (50% would be chance); correlation r = 0.32.
+- Land area drying: GLDAS **69%**, MERRA-2 **42%**. Global land mean: GLDAS −0.46 kg/m²/decade (p < 0.001); MERRA-2 +0.006/decade (p = 0.13).
+
+| Region | GLDAS (kg/m²/decade, p) | MERRA-2 (wetness/decade, p) | Same sign |
+|---|---|---|---|
+| Mediterranean | −0.83 (0.01) | −0.011 (0.06) | yes |
+| Amazon | −0.59 (0.05) | −0.032 (0.07) | yes |
+| N China | +0.68 (0.20) | +0.023 (0.10) | yes |
+| Australia | −0.61 (0.27) | −0.018 (0.40) | yes |
+| Sahel | −0.22 (0.11) | **+0.040 (< 0.001)** | no |
+| Southern Africa | **−1.44 (0.005)** | +0.003 (0.79) | no |
+| Central US | −0.65 (0.10) | +0.001 (0.98) | no |
+| India | −0.04 (0.97) | +0.030 (0.09) | no |
+
+**Verdict:** the global drying in GLDAS 2.1 is not confirmed and is probably a forcing artefact. MERRA-2's Sahel wetting matches the published Sahel rainfall recovery. Mediterranean and Amazon drying are supported by both. Soil moisture keeps its caution label, now naming the regions that agree.
