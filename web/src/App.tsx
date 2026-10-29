@@ -140,8 +140,14 @@ export default function App() {
             <label key={v.id} className={`choice ${v.id === varId ? 'on' : ''}`}>
               <input type="radio" name="var" value={v.id} checked={v.id === varId} onChange={() => setVarId(v.id)} />
               {v.label}
+              {v.caution && <span className="caution-dot" title="Data-quality caution" aria-label="caution">!</span>}
             </label>
           ))}
+          {variable.caution && (
+            <p className="caution" role="note">
+              <strong>Caution:</strong> {variable.caution}
+            </p>
+          )}
         </fieldset>
 
         {!!manifest.catalogue?.length && (
@@ -156,8 +162,11 @@ export default function App() {
                   {manifest.catalogue!
                     .filter((c) => c.tier === tier)
                     .map((c) => (
-                      <li key={c.id} title={[c.product, c.note].filter(Boolean).join(' · ')}>
-                        <span>{c.label}</span>
+                      <li key={c.id} title={[c.product, c.caution ? `Caution: ${c.caution}` : '', c.note].filter(Boolean).join(' · ')}>
+                        <span>
+                          {c.label}
+                          {c.caution && <span className="caution-badge">caution</span>}
+                        </span>
                         <span className="sphere">{c.sphere}</span>
                       </li>
                     ))}

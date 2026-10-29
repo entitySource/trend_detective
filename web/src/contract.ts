@@ -16,6 +16,7 @@ export type VariableEntry = {
   regions: string
   pixels: { tileDeg: number; resDeg: number; scale: number; offset: number; path: string } | null
   note?: string
+  caution?: string
 }
 
 export type Manifest = {
@@ -34,7 +35,7 @@ export type Manifest = {
 }
 
 // Tier 2/3 variables: listed in the app, trends not computed yet (docs/variables.md).
-export type CatalogueEntry = { id: string; label: string; tier: 2 | 3; sphere: string; product: string; note?: string }
+export type CatalogueEntry = { id: string; label: string; tier: 2 | 3; sphere: string; product: string; note?: string; caution?: string }
 
 export type TrendStats = {
   slopePerDecade: number | null

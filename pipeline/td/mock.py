@@ -57,12 +57,19 @@ PALETTE_OF = {"t2m": "warm", "tws": "wet", "precip": "wet", "ndvi": "wet", "aod"
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "variables.yaml"
 
 
+def _config_vars() -> dict:
+    return yaml.safe_load(CONFIG.read_text(encoding="utf-8"))["variables"]
+
+
+def _caution(v: dict) -> dict:
+    return {"caution": v["caution"]} if v.get("caution") else {}
+
+
 def catalogue() -> list[dict]:
     """Tier 2/3 variables from config: listed in the app, trends not computed yet."""
-    cfg = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
     return [
-        {"id": k, "label": v["label"], "tier": v["tier"], "sphere": v["sphere"], "product": f"{v['product']} v{v['version']}", "note": v.get("note", "")}
-        for k, v in cfg["variables"].items()
+        {"id": k, "label": v["label"], "tier": v["tier"], "sphere": v["sphere"], "product": f"{v['product']} v{v['version']}", "note": v.get("note", ""), **_caution(v)}
+        for k, v in _config_vars().items()
         if v["tier"] > 1
     ]
 SEASON_GAIN = {"ANN": 1.0, "DJF": 1.3, "MAM": 0.9, "JJA": 0.8, "SON": 1.1}
@@ -147,6 +154,7 @@ def generate(out: Path, seasons: tuple[str, ...] = ("ANN", "JJA"), deg: float = 
                 "regions": f"regions/{vid}.json",
                 "pixels": None,
                 "note": "MOCK DATA: synthetic pattern, not a real measurement.",
+                **_caution(_config_vars()[vid]),
             }
         )
 

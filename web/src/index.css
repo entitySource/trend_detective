@@ -168,6 +168,38 @@ legend {
   font-size: 0.78rem;
 }
 
+.caution {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #7c5a12;
+  border-radius: 6px;
+  background: #2a2010;
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.caution-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.caution-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid #7c5a12;
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 0.7rem;
+}
+
 .legend {
   margin-bottom: 16px;
 }

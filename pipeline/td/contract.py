@@ -157,6 +157,7 @@ SCHEMAS: dict[str, dict] = {
                             "required": ["tileDeg", "resDeg", "scale", "offset", "path"],
                         },
                         "note": {"type": "string"},
+                        "caution": {"type": "string"},  # data-quality warning shown with the map
                     },
                 },
             },
@@ -170,7 +171,7 @@ SCHEMAS: dict[str, dict] = {
                 "items": {
                     "type": "object",
                     "required": ["id", "label", "tier", "sphere", "product"],
-                    "properties": {"tier": {"enum": [2, 3]}, "note": {"type": "string"}},
+                    "properties": {"tier": {"enum": [2, 3]}, "note": {"type": "string"}, "caution": {"type": "string"}},
                 },
             },
         },

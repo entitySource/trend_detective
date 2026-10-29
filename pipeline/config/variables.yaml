@@ -67,6 +67,7 @@ variables:
     tier: 1
     sphere: atmosphere
     label: Air temperature (2 m)
+    caution: "MERRA-2 warms more slowly than GISTEMP over 2003-2025 (0.21 vs 0.28 °C/decade); the trend direction is right, its size is low."
     product: M2TMNXSLV
     version: "5.12.4"
     daac: GES_DISC
@@ -129,6 +130,7 @@ variables:
     tier: 2
     sphere: hydrology
     label: Soil moisture and evapotranspiration (GLDAS)
+    caution: "GLDAS 2.1 changed its input forcing over time, which can create artificial trends; the global drying signal is not confirmed by an independent dataset."
     product: GLDAS_NOAH025_M
     version: "2.1"
     daac: GES_DISC
@@ -186,6 +188,7 @@ variables:
     tier: 3
     sphere: atmosphere
     label: Total column ozone
+    caution: "Near-global rise of +3.7 DU/decade is larger than published records (roughly flat); likely OMI row-anomaly drift since 2007. Treat trends as uncertain."
     product: OMTO3e
     version: "003"
     daac: GES_DISC
