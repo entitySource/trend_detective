@@ -196,14 +196,14 @@ variables:
   airs:
     tier: 3
     sphere: atmosphere
-    label: Stratospheric temperature, 50 hPa (AIRS)
+    label: Stratospheric temperature, 10 hPa (AIRS)
     product: AIRS3STM
     version: "7.0"
     daac: GES_DISC
     var: Temperature_A
     units: K
     expected_granules: 277
-    note: 50 hPa level of Temperature_A (ascending orbit). Shows CO2-driven stratospheric cooling, the opposite sign to surface warming.
+    note: 10 hPa level of Temperature_A (ascending orbit). Shows CO2-driven stratospheric cooling, the opposite sign to surface warming.
   chlor:
     tier: 3
     sphere: ocean

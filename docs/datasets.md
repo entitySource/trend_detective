@@ -80,7 +80,7 @@ Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`p
 | Land surface temp. (MOD11C3 day) | 276 | Arctic land warming fastest | Arctic +0.34 K/decade (p = 0.05); global +0.10 (p = 0.66) | Pass (pattern) |
 | Snow cover (MOD10CM) | 271 of 273 | NH spring snow decline | −0.5 %-pts/decade (p = 0.39) | Weak; not significant |
 | Soil moisture (GLDAS 2.1) | 276 | No firm reference | Global topsoil drying −0.45 kg/m²/decade (p = 0.0001) | **Caution**: GLDAS 2.1 forcing changes can create trends |
-| Stratosphere 50 hPa (AIRS) | 276 | Cooling | Flat (−0.01 K/decade, p = 0.82) | **Fails the story**: 50 hPa cooling stalled after 2000 as ozone recovered; 10 hPa should show it |
+| Stratosphere 10 hPa (AIRS) | 276 | CO2 cooling, published ≈ −0.5 to −0.6 K/decade | **−0.58 K/decade** (p < 0.0001); tropics −0.67 (p = 0.001) | Pass. Switched from 50 hPa on 29 Oct: 50 hPa was flat (−0.01 K/decade, p = 0.82) because ozone recovery offsets CO2 there |
 | Chlorophyll (MODIS-Aqua) | 276 | No robust global trend expected | +0.014 mg/m³/decade (p = 0.28) | Pass (flat) |
 
 Missing months: snow 2025-09 and 2025-12 (source files unreadable after 3 tries); IMERG ends 2025-09; OMI starts 2004-10.

@@ -18,7 +18,7 @@ def trend(label,ts,yrs,mos,months=None,scale=1,unit=''):
     a=np.array([np.nanmean(ts[sel&(yrs==y)]) if (sel&(yrs==y)&np.isfinite(ts)).any() else np.nan for y in Y])
     ok=np.isfinite(a); r=series_stats(a[ok],Y[ok])
     print(f"  {label:42} {r['slopePerDecade']*scale:+9.3f} {unit}/decade  p={r['p']:.3g}  n={ok.sum()}")
-for n in ['seaice','sealevel','snow','lst','soil','airs','ozone','sst','chlor']:
+for n in (sys.argv[1:] or ['seaice','sealevel','snow','lst','soil','airs','ozone','sst','chlor']):
     c,yrs,mos=load(n); filled=int((~np.isnan(c).all(axis=(1,2))).sum())
     print(f"== {n}: months {filled}/{len(c)}, range {np.nanmin(c):.4g}..{np.nanmax(c):.4g}")
     if n=='seaice':
@@ -35,8 +35,8 @@ for n in ['seaice','sealevel','snow','lst','soil','airs','ozone','sst','chlor']:
         trend('Mediterranean topsoil, JJA',box(c,45,35,-10,40),yrs,mos,[6,7,8],1,'kg/m2')
         trend('Global land topsoil',box(c,90,-60),yrs,mos,None,1,'kg/m2')
     if n=='airs':
-        trend('Global 50 hPa temperature',box(c),yrs,mos,None,1,'K')
-        trend('Tropical 50 hPa (20S-20N)',box(c,20,-20),yrs,mos,None,1,'K')
+        trend('Global stratospheric temperature',box(c),yrs,mos,None,1,'K')
+        trend('Tropical stratosphere (20S-20N)',box(c,20,-20),yrs,mos,None,1,'K')
     if n=='ozone':
         trend('Antarctic Oct ozone (<-65)',box(c,-65,-90),yrs,mos,[10],1,'DU')
         trend('Global ozone (60S-60N)',box(c,60,-60),yrs,mos,None,1,'DU')

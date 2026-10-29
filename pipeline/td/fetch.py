@@ -379,7 +379,7 @@ def fetch_grace(name: str, v: dict, keys: list[str]) -> None:
 
 
 _OMI_DAY = r"_(\d{4})m(\d{2})\d{2}_"  # OMI-Aura_L3-OMNO2d_2015m0701_…
-_AIRS_LEVEL = 13  # 50 hPa in StdPressureLev (1000 → 1 hPa): lower stratosphere, where CO2 cools
+_AIRS_LEVEL = 17  # 10 hPa in StdPressureLev (1000 → 1 hPa): middle stratosphere, where CO2 cooling is clear (50 hPa stalled after 2000)
 
 
 def _omi(path: Path, var: str) -> np.ndarray:
