@@ -158,17 +158,17 @@ variables:
     tier: 2
     sphere: ocean
     label: Sea surface temperature
-    product: MUR-JPL-L4-GLOB-v4.1
-    version: "4.1"
+    product: MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0
+    version: "2019.0"
     daac: POCLOUD
-    var: analysed_sst
-    units: K
+    var: sst
+    units: degC
     trend_units: "°C/decade"
-    regrid: monthly_mean_then_coarsen
+    regrid: coarsen_6
     mask: ocean
     palette: warm
-    expected_granules: 8402
-    note: Daily 0.01 degree (very large). Prefer a monthly SST product if one is available.
+    expected_granules: 276
+    note: MODIS-Aqua monthly 9 km daytime SST (8 MB/month). Replaced MUR, whose daily 0.01 degree files are 332 MB each.
 
   # ---------- Tier 3 (catalogue only) ----------
   no2:
@@ -196,14 +196,14 @@ variables:
   airs:
     tier: 3
     sphere: atmosphere
-    label: Upper-air temperature and CO2 (AIRS)
+    label: Stratospheric temperature, 50 hPa (AIRS)
     product: AIRS3STM
     version: "7.0"
     daac: GES_DISC
     var: Temperature_A
     units: K
     expected_granules: 277
-    note: CO2 rises everywhere (no opposite sign); show stratospheric cooling vs tropospheric warming instead.
+    note: 50 hPa level of Temperature_A (ascending orbit). Shows CO2-driven stratospheric cooling, the opposite sign to surface warming.
   chlor:
     tier: 3
     sphere: ocean
@@ -214,7 +214,8 @@ variables:
     var: chlor_a
     units: mg/m3
     expected_granules: 26198
-    note: Mixed periods and resolutions in CMR; filter to monthly 9 km.
+    granule_name: "*L3m.MO.CHL.chlor_a.9km*"
+    note: Mixed periods and resolutions in CMR; granule_name keeps the monthly 9 km files.
   sealevel:
     tier: 3
     sphere: ocean

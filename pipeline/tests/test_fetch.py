@@ -5,7 +5,22 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from td.fetch import LATS, LONS, coarsen_mean, grace_to_half, imerg_to_half, merra_to_half, month_keys, ndvi_to_half
+from td.fetch import (
+    LATS,
+    LONS,
+    airs_to_half,
+    cmg_to_half,
+    coarsen_mean,
+    gldas_to_half,
+    grace_to_half,
+    imerg_to_half,
+    merra_to_half,
+    month_keys,
+    ndvi_to_half,
+    omi_to_half,
+    polar_to_half,
+    polar_xy,
+)
 
 
 def test_month_keys_cover_the_window():
@@ -53,3 +68,51 @@ def test_grace_flips_lat_and_moves_greenwich_to_the_middle():
     field[-1, 0] = 7  # northernmost row, lon 0.25°E
     out = grace_to_half(field)
     assert out[0, 360] == 7 and LONS[360] == pytest.approx(0.25) and LATS[0] == pytest.approx(89.75)
+
+
+def test_cmg_flags_become_nan_and_scale_applies():
+    raw = np.full((3600, 7200), 15000.0)
+    raw[:10, :10] = 0  # LST fill
+    out = cmg_to_half(raw, 0.02, (7500, 65535))
+    assert np.isnan(out[0, 0]) and out[1, 1] == pytest.approx(300)
+
+
+def test_gldas_flips_and_leaves_antarctica_empty():
+    lat = np.arange(-59.875, 90, 0.25)
+    out = gldas_to_half(np.repeat(lat[:, None], 1440, axis=1))
+    assert out.shape == (360, 720)
+    assert out[0, 0] == pytest.approx(89.75) and np.isnan(out[-1]).all()
+    assert out[299, 0] == pytest.approx(-59.75)
+
+
+def test_omi_is_south_first_with_huge_fill():
+    lat = np.linspace(-89.875, 89.875, 720)
+    field = np.repeat(lat[:, None], 1440, axis=1)
+    field[:, :2] = -1.2676506e30
+    out = omi_to_half(field)
+    assert out[0, 5] == pytest.approx(89.75) and np.isnan(out[0, 0])
+
+
+def test_airs_cells_double():
+    f = np.arange(180 * 360, dtype=float).reshape(180, 360)
+    out = airs_to_half(f)
+    assert out.shape == (360, 720) and out[1, 1] == f[0, 0] and out[2, 2] == f[1, 1]
+
+
+def test_polar_projection_matches_nsidc_grid_corner():
+    # NSIDC: the north grid's upper-left corner (-3850 km, 5850 km) is 30.98N, 168.35E.
+    x, y = polar_xy(np.array(30.98), np.array(168.35), south=False)
+    assert x == pytest.approx(-3850e3, abs=5e3) and y == pytest.approx(5850e3, abs=5e3)
+    x, y = polar_xy(np.array(90.0), np.array(0.0), south=False)
+    assert abs(x) < 1 and abs(y) < 1
+
+
+def test_polar_to_half_fills_only_its_hemisphere_and_masks_flags():
+    x = np.arange(-3837500, 3750000, 25000.0)
+    y = np.arange(5837500, -5350000, -25000.0)
+    conc = np.full((len(y), len(x)), 0.5)
+    conc[len(y) // 2, len(x) // 2] = 2.54  # land flag near the pole
+    out = polar_to_half(conc, x, y, south=False)
+    assert np.isnan(out[LATS < 0]).all()
+    assert out[0, 100] == pytest.approx(50) or np.isnan(out[0, 100])
+    assert np.nanmax(out) == pytest.approx(50)

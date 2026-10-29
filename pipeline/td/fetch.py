@@ -3,7 +3,7 @@
 Each finished month is cached as data/interim/{var}/YYYY-MM.npy, so a stopped run resumes where it left off.
 `assemble` stacks the cache into data/interim/{var}.npz for the trend engine.
 
-Routes (docs/datasets.md):
+Routes (docs/datasets.md), one per variable in ROUTE_OF:
   t2m, aod  MERRA-2 via cloud OPeNDAP, requesting one variable (~0.7 MB/month)
   precip    IMERG HDF5, downloaded then deleted; stored lon-first, so transposed
   ndvi      MOD13C2 HDF4, downloaded then deleted; 0.05° → 0.5° by 10×10 mean
@@ -74,8 +74,72 @@ def ndvi_to_half(raw: np.ndarray, fill: float = -3000, scale: float = 10000) -> 
 
 
 def grace_to_half(field_lat_lon: np.ndarray) -> np.ndarray:
-    """GRACE mascon grid (lat south→north, lon 0→360) → north→south, −180→180."""
+    """GRACE mascon grid (lat south→north, lon 0→360) → north→south, −180→180. Also fits NASA-SSH sea level."""
     return np.roll(field_lat_lon[::-1], 360, axis=1)
+
+
+def cmg_to_half(raw: np.ndarray, scale: float = 1.0, valid: tuple[float, float] = (-np.inf, np.inf)) -> np.ndarray:
+    """MODIS 0.05° CMG (LST, snow), north→south from −180; raw values outside `valid` are fill or flags."""
+    v = np.where((raw >= valid[0]) & (raw <= valid[1]), raw * scale, np.nan)
+    return coarsen_mean(v, 10)
+
+
+def gldas_to_half(field: np.ndarray) -> np.ndarray:
+    """GLDAS 0.25° (600 lat from −59.875 south→north, 1440 lon) → 0.5°; Antarctica rows stay NaN."""
+    top = coarsen_mean(field, 2)[::-1]
+    return np.vstack([top, np.full((GRID["nlat"] - top.shape[0], GRID["nlon"]), np.nan)])
+
+
+def omi_to_half(field: np.ndarray) -> np.ndarray:
+    """OMI L3e/L3d 0.25° (720, 1440), south→north; fill is −1.27e30."""
+    return coarsen_mean(np.where(field < -1e29, np.nan, field)[::-1], 2)
+
+
+def airs_to_half(field: np.ndarray) -> np.ndarray:
+    """AIRS 1° (180, 360), already north→south from −180: each cell becomes 2×2."""
+    f = np.where(field == -9999, np.nan, field)
+    return np.repeat(np.repeat(f, 2, axis=0), 2, axis=1)
+
+
+def l3m9km_to_half(field: np.ndarray) -> np.ndarray:
+    """Ocean-colour L3 mapped 9 km (2160, 4320), north→south from −180 (SST, chlorophyll)."""
+    return coarsen_mean(field, 6)
+
+
+# Hughes 1980 ellipsoid, NSIDC polar stereographic (EPSG:3411 north, 3412 south), true scale at ±70°.
+_A, _E = 6378273.0, 0.081816153
+
+
+def polar_xy(lat: np.ndarray, lon: np.ndarray, south: bool) -> tuple[np.ndarray, np.ndarray]:
+    """Forward projection (Snyder 1987, eq. 21-33/21-34) for the sea-ice grids."""
+    lon0 = 0.0 if south else -45.0
+    if south:
+        lat, lon, lon0 = -lat, -lon, -lon0
+    phi, phic = np.radians(lat), np.radians(70.0)
+
+    def t(p):
+        return np.tan(np.pi / 4 - p / 2) / ((1 - _E * np.sin(p)) / (1 + _E * np.sin(p))) ** (_E / 2)
+
+    mc = np.cos(phic) / np.sqrt(1 - _E**2 * np.sin(phic) ** 2)
+    rho = _A * mc * t(phi) / t(phic)
+    dl = np.radians(lon - lon0)
+    x, y = rho * np.sin(dl), -rho * np.cos(dl)
+    return (-x, -y) if south else (x, y)
+
+
+def polar_to_half(conc: np.ndarray, x: np.ndarray, y: np.ndarray, south: bool) -> np.ndarray:
+    """Nearest 25 km cell for every 0.5° cell in that hemisphere; flags (land, coast, pole hole) → NaN; fraction → %."""
+    la, lo = np.meshgrid(LATS, LONS, indexing="ij")
+    out = np.full(la.shape, np.nan)
+    hemi = la < 0 if south else la > 0
+    px, py = polar_xy(la[hemi], lo[hemi], south)
+    dx, dy = x[1] - x[0], y[1] - y[0]
+    ix, iy = np.round((px - x[0]) / dx).astype(int), np.round((py - y[0]) / dy).astype(int)
+    inside = (ix >= 0) & (ix < len(x)) & (iy >= 0) & (iy < len(y))
+    vals = np.full(px.shape, np.nan)
+    vals[inside] = conc[iy[inside], ix[inside]]
+    out[hemi] = np.where((vals >= 0) & (vals <= 1), vals * 100, np.nan)
+    return out
 
 
 # ---------- Cache ----------
@@ -99,45 +163,112 @@ def _granule_month(g) -> str:
     return begin[:7]
 
 
+def _search(v: dict, keys: list[str]) -> list:
+    kw = {"short_name": v["product"], "temporal": (f"{keys[0]}-01", f"{keys[-1]}-28")}
+    if v.get("version"):
+        kw["version"] = v["version"]
+    if v.get("granule_name"):  # e.g. only the monthly 9 km chlorophyll files
+        kw["granule_name"] = v["granule_name"]
+    return earthaccess.search_data(**kw)
+
+
 def _granules(v: dict, keys: list[str]) -> dict[str, object]:
     """One granule per month, matched on its start date (searches can return the neighbouring month)."""
-    found = earthaccess.search_data(short_name=v["product"], version=v["version"], temporal=(f"{keys[0]}-01", f"{keys[-1]}-28"))
     by_month: dict[str, object] = {}
-    for g in found:
+    for g in _search(v, keys):
         k = _granule_month(g)
         if k in keys and k not in by_month:
             by_month[k] = g
     return by_month
 
 
+def _grouped(v: dict, keys: list[str], pattern: str) -> dict[str, list]:
+    """Several granules per month (daily, weekly or per-hemisphere files), grouped by the date in the file name.
+
+    `pattern` captures year and month; files it doesn't match (e.g. daily sea-ice files) are skipped.
+    """
+    import re
+
+    by_month: dict[str, list] = {}
+    for g in _search(v, keys):
+        m = re.search(pattern, _filename(g))
+        if m and f"{m[1]}-{m[2]}" in keys:
+            by_month.setdefault(f"{m[1]}-{m[2]}", []).append(g)
+    return by_month
+
+
 # ---------- Routes ----------
 
-def _opendap_url(g, var: str) -> str:
+def _opendap_get(session, g, ce: str, retries: int = 3) -> Path:
+    """Request one subset (`ce` = DAP4 constraint) and write it to a temp file the caller deletes."""
     url = next(u["URL"] for u in g["umm"]["RelatedUrls"] if u.get("Subtype") == "OPENDAP DATA")
-    return f"{url}.dap.nc4?dap4.ce=/{var};/lat;/lon"
+    for attempt in range(retries):
+        try:
+            r = session.get(f"{url}.dap.nc4?dap4.ce={ce}", timeout=180)
+            r.raise_for_status()
+            break
+        except Exception:
+            if attempt == retries - 1:
+                raise
+            time.sleep(10 * (attempt + 1))
+    fd, path = tempfile.mkstemp(suffix=".nc4")
+    with open(fd, "wb") as f:
+        f.write(r.content)
+    return Path(path)
 
 
-def _fetch_opendap_month(session, g, var: str, key: str, name: str) -> str:
-    r = session.get(_opendap_url(g, var), timeout=120)
-    r.raise_for_status()
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "subset.nc4"
-        path.write_bytes(r.content)
-        with xr.open_dataset(path) as ds:
-            field = ds[var].values[0].astype(float)
-            _save(name, key, merra_to_half(field, ds["lat"].values, ds["lon"].values))
-    return key
+def _read_subset(path: Path, var: str) -> np.ndarray:
+    """First 2-D slice of `var` from an OPeNDAP subset (searched through groups, e.g. HDF-EOS paths)."""
+    import h5py
+
+    with h5py.File(path) as h:
+        found = []
+        h.visit(lambda n: found.append(n) if n.split("/")[-1] == var and isinstance(h[n], h5py.Dataset) else None)
+        a = h[found[0]][()].astype(float)
+    return a.reshape(a.shape[-2:]) if a.ndim > 2 else a
 
 
-def fetch_opendap(name: str, v: dict, keys: list[str], workers: int = 6) -> None:
-    todo = {k: g for k, g in _granules(v, keys).items() if k not in _done(name)}
+def _merra(path: Path, var: str) -> np.ndarray:
+    with xr.open_dataset(path) as ds:
+        return merra_to_half(ds[var].values[0].astype(float), ds["lat"].values, ds["lon"].values)
+
+
+def _gldas(path: Path, var: str) -> np.ndarray:
+    with xr.open_dataset(path) as ds:
+        return gldas_to_half(ds[var].values[0].astype(float))
+
+
+def _opendap_month(session, gs: list, ce: str, reader, var: str) -> np.ndarray:
+    fields = []
+    for g in gs:
+        p = _opendap_get(session, g, ce)
+        try:
+            fields.append(reader(p, var))
+        finally:
+            p.unlink(missing_ok=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return np.nanmean(fields, axis=0)
+
+
+def fetch_opendap(name: str, v: dict, keys: list[str], ce: str, reader, pattern: str | None = None, workers: int = 6) -> None:
+    """Monthly product (one granule per month) or, with `pattern`, daily granules averaged into each month."""
+    groups = _grouped(v, keys, pattern) if pattern else {k: [g] for k, g in _granules(v, keys).items()}
+    todo = {k: gs for k, gs in groups.items() if k not in _done(name)}
     session = earthaccess.get_requests_https_session()
+    failed: list[str] = []
     with ThreadPoolExecutor(workers) as pool:
-        jobs = [pool.submit(_fetch_opendap_month, session, g, v["var"], k, name) for k, g in todo.items()]
+        jobs = {pool.submit(_opendap_month, session, gs, ce, reader, v["var"]): k for k, gs in todo.items()}
         for i, job in enumerate(as_completed(jobs), 1):
-            job.result()
+            try:
+                _save(name, jobs[job], job.result())
+            except Exception as e:
+                failed.append(jobs[job])
+                print(f"  {name} {jobs[job]}: {type(e).__name__} {e}"[:200], flush=True)
             if i % 24 == 0:
                 print(f"  {name}: {i}/{len(jobs)} months", flush=True)
+    if failed:
+        print(f"  {name}: {len(failed)} months failed after retries: {sorted(failed)}. Rerun to resume.", flush=True)
 
 
 def _read_imerg(path: Path, var: str) -> np.ndarray:
@@ -155,17 +286,45 @@ def _read_ndvi(path: Path, var: str) -> np.ndarray:
         sd.end()
 
 
+def _read_cmg(path: Path, var: str, scale: float, valid: tuple[float, float]) -> np.ndarray:
+    from pyhdf.SD import SD, SDC
+
+    sd = SD(str(path), SDC.READ)
+    try:
+        return cmg_to_half(sd.select(var).get().astype(float), scale, valid)
+    finally:
+        sd.end()
+
+
+def _read_l3m(path: Path, var: str) -> np.ndarray:
+    with xr.open_dataset(path) as ds:  # fill already masked; chlorophyll and SST share the 9 km grid
+        return l3m9km_to_half(ds[var].values.astype(float))
+
+
+def _read_sealevel(path: Path, var: str) -> np.ndarray:
+    with xr.open_dataset(path) as ds:
+        return grace_to_half(ds[var].values.astype(float))
+
+
+def _read_seaice(path: Path, var: str) -> np.ndarray:
+    with xr.open_dataset(path) as ds:
+        conc = next(ds[k] for k in ds.data_vars if k.endswith("_ICECON"))  # named by sensor (F13, F17, …)
+        return polar_to_half(conc.values[0].astype(float), ds["x"].values, ds["y"].values, south="_S25km_" in path.name)
+
+
 def _filename(g) -> str:
     return Path(g.data_links()[0]).name
 
 
-def fetch_files(name: str, v: dict, keys: list[str], reader, batch: int = 4, retries: int = 3) -> None:
-    """Download a few files at a time, reduce each to 0.5°, delete the originals.
+def fetch_files(name: str, v: dict, keys: list[str], reader, pattern: str | None = None, batch: int = 4, retries: int = 3) -> None:
+    """Download a few months of files at a time, reduce each to 0.5°, delete the originals.
 
+    With `pattern`, a month may have several files (weekly, per hemisphere); their 0.5° fields are averaged.
     Files are matched to months by name, so a failed download can never shift data onto the wrong month;
     a batch with missing files is retried, and months still missing are reported (rerun to resume).
     """
-    todo = sorted((k, g) for k, g in _granules(v, keys).items() if k not in _done(name))
+    groups = _grouped(v, keys, pattern) if pattern else {k: [g] for k, g in _granules(v, keys).items()}
+    todo = sorted((k, gs) for k, gs in groups.items() if k not in _done(name))
     failed: list[str] = []
     for i in range(0, len(todo), batch):
         pending = list(todo[i : i + batch])
@@ -173,16 +332,18 @@ def fetch_files(name: str, v: dict, keys: list[str], reader, batch: int = 4, ret
             tmp = Path(tempfile.mkdtemp(prefix=f"td-{name}-"))
             try:
                 try:
-                    paths = earthaccess.download([g for _, g in pending], local_path=str(tmp), show_progress=False)
+                    paths = earthaccess.download([g for _, gs in pending for g in gs], local_path=str(tmp), show_progress=False)
                 except Exception as e:  # network blips: retry the batch
                     print(f"  {name}: download error ({type(e).__name__}), retry {attempt + 1}/{retries}", flush=True)
                     paths = []
                 by_name = {Path(p).name: Path(p) for p in paths}
-                for k, g in list(pending):
-                    p = by_name.get(_filename(g))
-                    if p is not None and p.exists():
-                        _save(name, k, reader(p, v["var"]))
-                        pending.remove((k, g))
+                for k, gs in list(pending):
+                    files = [by_name.get(_filename(g)) for g in gs]
+                    if all(p is not None and p.exists() for p in files):
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore", RuntimeWarning)
+                            _save(name, k, np.nanmean([reader(p, v["var"]) for p in files], axis=0))
+                        pending.remove((k, gs))
             finally:
                 shutil.rmtree(tmp, ignore_errors=True)
             if not pending:
@@ -212,13 +373,32 @@ def fetch_grace(name: str, v: dict, keys: list[str]) -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-ROUTES = {
-    "opendap": fetch_opendap,
-    "imerg": lambda n, v, k: fetch_files(n, v, k, _read_imerg),
+_OMI_DAY = r"_(\d{4})m(\d{2})\d{2}_"  # OMI-Aura_L3-OMNO2d_2015m0701_…
+_AIRS_LEVEL = 13  # 50 hPa in StdPressureLev (1000 → 1 hPa): lower stratosphere, where CO2 cools
+
+
+def _omi(path: Path, var: str) -> np.ndarray:
+    return omi_to_half(_read_subset(path, var))
+
+
+# name → fetcher(name, v, keys). One entry per variable, so `scripts/fetch.py all` covers every tier.
+ROUTE_OF = {
+    "t2m": lambda n, v, k: fetch_opendap(n, v, k, f"/{v['var']};/lat;/lon", _merra),
+    "aod": lambda n, v, k: fetch_opendap(n, v, k, f"/{v['var']};/lat;/lon", _merra),
+    "precip": lambda n, v, k: fetch_files(n, v, k, _read_imerg),
     "ndvi": lambda n, v, k: fetch_files(n, v, k, _read_ndvi),
-    "grace": fetch_grace,
+    "tws": fetch_grace,
+    "lst": lambda n, v, k: fetch_files(n, v, k, lambda p, var: _read_cmg(p, var, 0.02, (7500, 65535))),
+    "snow": lambda n, v, k: fetch_files(n, v, k, lambda p, var: _read_cmg(p, var, 1.0, (0, 100))),
+    "soil": lambda n, v, k: fetch_opendap(n, v, k, f"/{v['var']};/lat;/lon", _gldas),
+    "seaice": lambda n, v, k: fetch_files(n, v, k, _read_seaice, pattern=r"_[NS]25km_(\d{4})(\d{2})_v"),
+    "sst": lambda n, v, k: fetch_files(n, v, k, _read_l3m),
+    "no2": lambda n, v, k: fetch_opendap(n, v, k, "/HDFEOS/GRIDS/ColumnAmountNO2/Data_Fields/" + v["var"], _omi, pattern=_OMI_DAY, workers=4),
+    "ozone": lambda n, v, k: fetch_opendap(n, v, k, "/HDFEOS/GRIDS/OMI_Column_Amount_O3/Data_Fields/" + v["var"], _omi, pattern=_OMI_DAY, workers=4),
+    "airs": lambda n, v, k: fetch_opendap(n, v, k, f"/ascending/Data_Fields/{v['var']}[{_AIRS_LEVEL}:{_AIRS_LEVEL}][0:179][0:359]", lambda p, var: airs_to_half(_read_subset(p, var))),
+    "chlor": lambda n, v, k: fetch_files(n, v, k, _read_l3m),
+    "sealevel": lambda n, v, k: fetch_files(n, v, k, _read_sealevel, pattern=r"_(\d{4})(\d{2})\d{2}\.nc$", batch=1),
 }
-ROUTE_OF = {"t2m": "opendap", "aod": "opendap", "precip": "imerg", "ndvi": "ndvi", "tws": "grace"}
 
 
 def fetch(name: str) -> None:
@@ -226,7 +406,7 @@ def fetch(name: str) -> None:
     keys = month_keys(cfg["window"]["start"], cfg["window"]["end"])
     if not earthaccess.login(strategy="netrc").authenticated:
         raise SystemExit("Not logged in to Earthdata: see docs/datasets.md")
-    ROUTES[ROUTE_OF[name]](name, cfg["variables"][name], keys)
+    ROUTE_OF[name](name, cfg["variables"][name], keys)
 
 
 def assemble(name: str) -> Path:
