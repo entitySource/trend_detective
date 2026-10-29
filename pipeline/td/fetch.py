@@ -340,9 +340,14 @@ def fetch_files(name: str, v: dict, keys: list[str], reader, pattern: str | None
                 for k, gs in list(pending):
                     files = [by_name.get(_filename(g)) for g in gs]
                     if all(p is not None and p.exists() for p in files):
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore", RuntimeWarning)
-                            _save(name, k, np.nanmean([reader(p, v["var"]) for p in files], axis=0))
+                        try:
+                            with warnings.catch_warnings():
+                                warnings.simplefilter("ignore", RuntimeWarning)
+                                field = np.nanmean([reader(p, v["var"]) for p in files], axis=0)
+                        except Exception as e:  # truncated download: leave pending so the batch retries
+                            print(f"  {name} {k}: unreadable file ({type(e).__name__}), retrying", flush=True)
+                            continue
+                        _save(name, k, field)
                         pending.remove((k, gs))
             finally:
                 shutil.rmtree(tmp, ignore_errors=True)
