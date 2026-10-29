@@ -128,6 +128,9 @@ export default function App() {
       <aside className="panel">
         <header>
           <h1>Trend Detective</h1>
+          <a href="#/" className="back">
+            ← Globe command center
+          </a>
           <p className="sub">
             What is changing on Earth, where, how much, and is it real? {manifest.window.start.slice(0, 4)}–{manifest.window.end.slice(0, 4)}
           </p>

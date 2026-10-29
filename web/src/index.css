@@ -1,3 +1,5 @@
+/* Map view styles. Layered below Tailwind utilities so the command center's classes win (order set in command.css). */
+@layer legacy {
 :root {
   --bg: #0b1220;
   --panel: #111a2b;
@@ -47,6 +49,14 @@ h2 {
   font-size: 0.95rem;
   color: var(--muted);
   font-weight: 500;
+}
+
+.back {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  text-decoration: none;
 }
 
 .sub {
@@ -313,4 +323,5 @@ dd {
   .panel {
     border-right: 0;
   }
+}
 }

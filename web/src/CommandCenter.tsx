@@ -1,0 +1,930 @@
+// Trend Detective command center: a globe of investigation sites, a trend-test panel, a guided
+// "what / where" question flow and watchable demo cases. Reads the same contract files as the map view
+// (manifest, regions/{var}.json, validation.json), so it shows real data as soon as the pipeline exports it.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { geoDistance, geoGraticule10, geoOrthographic, geoPath, type GeoPermissibleObjects } from 'd3-geo'
+import { feature } from 'topojson-client'
+import type { GeometryCollection, Topology } from 'topojson-specification'
+import countries110m from 'world-atlas/countries-110m.json'
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Compass,
+  Crosshair,
+  Database,
+  Filter,
+  Globe2,
+  HelpCircle,
+  Loader2,
+  Map as MapIcon,
+  Pause,
+  Play,
+  Radar,
+  Search,
+  Sparkles,
+  X,
+  XCircle,
+} from 'lucide-react'
+import { dataUrl, type Manifest, type TrendStats } from './contract'
+
+// ---------- Static knowledge: sites, plain-language definitions, research leads ----------
+
+type Biome = 'megacity air' | 'farmland' | 'rainforest' | 'desert edge' | 'polar' | 'dryland' | 'temperate' | 'planet'
+
+type Site = { id: string; name: string; lat: number; lon: number; biome: Biome; blurb: string }
+
+// Centres of the analysis boxes in pipeline/td/regions.py.
+const SITES: Site[] = [
+  { id: 'glb', name: 'Whole world', lat: 0, lon: 0, biome: 'planet', blurb: 'Every grid cell, area-weighted. Global trends are rare but powerful.' },
+  { id: 'arc', name: 'Arctic', lat: 78, lon: 0, biome: 'polar', blurb: 'Warming about four times faster than the planet as a whole.' },
+  { id: 'eas', name: 'Eastern China', lat: 34, lon: 116, biome: 'megacity air', blurb: 'Hundreds of millions of people, heavy industry and clean-air laws since 2013.' },
+  { id: 'igp', name: 'Indo-Gangetic Plain', lat: 26, lon: 81.5, biome: 'farmland', blurb: 'One of the most farmed, irrigated and polluted plains on Earth.' },
+  { id: 'eur', name: 'Europe', lat: 50, lon: 10, biome: 'temperate', blurb: 'Decades of emission controls; heatwaves becoming more common.' },
+  { id: 'amz', name: 'Amazon', lat: -4, lon: -60, biome: 'rainforest', blurb: 'The largest rainforest, under drought and deforestation pressure.' },
+  { id: 'sah', name: 'Sahel', lat: 14, lon: 10, biome: 'desert edge', blurb: 'The strip south of the Sahara where rainfall swings decade to decade.' },
+  { id: 'aus', name: 'Australia', lat: -25, lon: 134, biome: 'dryland', blurb: 'A dry continent with record bushfires and droughts.' },
+]
+
+const DEFINITIONS: Record<string, { short: string; plain: string; source: string }> = {
+  t2m: { short: 'Air temperature', plain: 'The temperature of the air 2 m above the ground, the temperature you would feel.', source: 'NASA MERRA-2 reanalysis' },
+  tws: { short: 'Water storage', plain: 'All the water stored on and under land: rivers, soil, groundwater and ice, weighed from space by tiny changes in Earth’s gravity.', source: 'NASA/DLR GRACE & GRACE-FO' },
+  precip: { short: 'Precipitation', plain: 'How much rain and snow falls, in millimetres per day, combined from a fleet of satellites.', source: 'NASA GPM IMERG' },
+  ndvi: { short: 'Greenness', plain: 'How green and leafy the land is: near 0 is bare ground, near 1 is dense forest.', source: 'NASA MODIS Terra' },
+  aod: { short: 'Haze', plain: 'How much sunlight dust, smoke and pollution particles block. 0 is crystal-clear air; above 0.5 is very hazy.', source: 'NASA MERRA-2 aerosols' },
+}
+
+const INTERESTS = [
+  { id: 'heat', label: 'Heat', vars: ['t2m'] },
+  { id: 'water', label: 'Water', vars: ['tws', 'precip'] },
+  { id: 'air', label: 'Air quality', vars: ['aod'] },
+  { id: 'plants', label: 'Plants', vars: ['ndvi'] },
+] as const
+
+const PLACES: { id: Biome; label: string }[] = [
+  { id: 'megacity air', label: 'Above a big city' },
+  { id: 'farmland', label: 'Farmland' },
+  { id: 'rainforest', label: 'Rainforest' },
+  { id: 'desert edge', label: 'Desert edge' },
+  { id: 'polar', label: 'Polar' },
+  { id: 'dryland', label: 'Dry continent' },
+  { id: 'temperate', label: 'Temperate' },
+]
+
+// Leads drawn from published research: why a variable might show a trend in a place.
+const LEADS: { varId: string; siteId: string; why: string }[] = [
+  { varId: 'aod', siteId: 'eas', why: 'China’s 2013 clean-air plan cut particle pollution sharply (Zhang et al. 2019, PNAS).' },
+  { varId: 'aod', siteId: 'igp', why: 'Crop-residue burning and growing emissions raised haze over northern India (Dey & Di Girolamo 2011).' },
+  { varId: 'aod', siteId: 'eur', why: 'European emission controls have cleaned the air since the 1990s.' },
+  { varId: 'tws', siteId: 'igp', why: 'Groundwater pumping for irrigation is draining aquifers (Rodell et al. 2009, 2018, Nature).' },
+  { varId: 'ndvi', siteId: 'igp', why: 'India is greening, mostly from intensive farming (Chen et al. 2019, Nature Sustainability).' },
+  { varId: 'ndvi', siteId: 'eas', why: 'China’s tree planting drives a large share of global greening (Chen et al. 2019).' },
+  { varId: 't2m', siteId: 'arc', why: 'Arctic amplification: the Arctic warms several times faster than the globe (Rantanen et al. 2022).' },
+  { varId: 't2m', siteId: 'eur', why: 'Europe is a heatwave hot-spot, warming faster than other mid-latitudes (Rousi et al. 2022).' },
+  { varId: 'precip', siteId: 'sah', why: 'Sahel rainfall has partly recovered since the 1980s droughts (Biasutti 2019).' },
+  { varId: 'ndvi', siteId: 'sah', why: 'The Sahel “re-greening” follows the rainfall recovery.' },
+  { varId: 'precip', siteId: 'amz', why: 'Longer dry seasons and record droughts in 2005, 2010, 2015 and 2023.' },
+  { varId: 'tws', siteId: 'aus', why: 'The Millennium Drought and later floods make Australian water storage swing.' },
+  { varId: 't2m', siteId: 'glb', why: 'The global warming signal: about 0.2–0.3 °C per decade since 2000.' },
+]
+
+const DEMOS = [
+  {
+    title: 'The haze mystery',
+    blurb: 'Same variable, opposite trends, 3,000 km apart.',
+    steps: [
+      { varId: 'aod', siteId: 'eas', caption: 'Case 1 · Haze over Eastern China. Clean-air laws arrived in 2013. Has the air cleared?' },
+      { varId: 'aod', siteId: 'igp', caption: 'Case 1 · Now the Indo-Gangetic Plain next door. Same satellites, same years: is the trend the same?' },
+    ],
+  },
+  {
+    title: 'The vanishing water',
+    blurb: 'Fields are greening while the water underneath disappears.',
+    steps: [
+      { varId: 'tws', siteId: 'igp', caption: 'Case 2 · GRACE weighs the water under northern India. Is it running out?' },
+      { varId: 'ndvi', siteId: 'igp', caption: 'Case 2 · Meanwhile, the same fields from above. Greener or browner?' },
+    ],
+  },
+]
+
+// ---------- Data ----------
+
+type RegionSeries = { values: number[]; stats: TrendStats }
+type RegionsFile = { variable: string; years: number[]; regions: { id: string; seasons: Record<string, RegionSeries> }[] }
+type Check = { id: string; name: string; status: 'pass' | 'fail' | 'pending'; note?: string }
+
+const topo = countries110m as unknown as Topology<{ countries: GeometryCollection; land: GeometryCollection }>
+const LAND = feature(topo, topo.objects.land) as GeoPermissibleObjects
+const COUNTRIES = feature(topo, topo.objects.countries) as GeoPermissibleObjects
+const GRATICULE = geoGraticule10()
+
+type Verdict = 'rising' | 'falling' | 'noise' | 'unknown'
+const verdictOf = (s?: TrendStats): Verdict => {
+  if (!s || s.p === null || s.slopePerDecade === null) return 'unknown'
+  if (s.p >= 0.05) return 'noise'
+  return s.slopePerDecade > 0 ? 'rising' : 'falling'
+}
+const VERDICT_COLOR: Record<Verdict, string> = { rising: '#fb7185', falling: '#38bdf8', noise: '#94a3b8', unknown: '#475569' }
+const VERDICT_TEXT: Record<Verdict, string> = { rising: 'Rising', falling: 'Falling', noise: 'Could be noise', unknown: 'No data' }
+
+const fmt = (x: number | null | undefined, d = 3) => (x === null || x === undefined || !Number.isFinite(x) ? '–' : Math.abs(x) >= 100 ? x.toFixed(0) : x.toPrecision(d))
+const fmtP = (p: number | null | undefined) => (p === null || p === undefined ? '–' : p < 0.001 ? '< 0.001' : p.toFixed(3))
+
+// ---------- Small visual pieces ----------
+
+function Ring({ value, label, sub, color }: { value: number; label: string; sub: string; color: string }) {
+  const r = 30
+  const c = 2 * Math.PI * r
+  const v = Math.max(0, Math.min(1, value))
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative h-[76px] w-[76px]">
+        <svg width="76" height="76" viewBox="0 0 76 76" className="-rotate-90">
+          <circle cx="38" cy="38" r={r} fill="none" stroke="rgba(148,163,184,0.15)" strokeWidth="6" />
+          <circle
+            cx="38"
+            cy="38"
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - v)}
+            style={{ transition: 'stroke-dashoffset 0.9s ease', filter: `drop-shadow(0 0 4px ${color})` }}
+          />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-100">{label}</span>
+      </div>
+      <div className="text-[10px] tracking-widest text-slate-400 uppercase">{sub}</div>
+    </div>
+  )
+}
+
+function Bar({ label, value, max, color, text }: { label: string; value: number; max: number; color: string; text: string }) {
+  const pct = Math.max(2, Math.min(100, (Math.abs(value) / max) * 100))
+  return (
+    <div>
+      <div className="mb-1 flex justify-between gap-2 text-[11px] tracking-wider text-slate-400 uppercase">
+        <span>{label}</span>
+        <span className="text-right font-mono text-slate-200 normal-case">{text}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-800/80">
+        <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, background: color, boxShadow: `0 0 8px ${color}` }} />
+      </div>
+    </div>
+  )
+}
+
+function SeriesChart({ years, values, stats, color }: { years: number[]; values: number[]; stats: TrendStats; color: string }) {
+  const W = 320
+  const H = 120
+  const pad = 6
+  const lo = Math.min(...values)
+  const hi = Math.max(...values)
+  const span = hi - lo || 1
+  const x = (i: number) => pad + (i / (years.length - 1)) * (W - 2 * pad)
+  const y = (v: number) => H - pad - ((v - lo) / span) * (H - 2 * pad)
+  const pts = values.map((v, i) => `${x(i)},${y(v)}`).join(' ')
+  // Sen's line passes through the median point (median year, median value).
+  const sorted = [...values].sort((a, b) => a - b)
+  const midV = sorted[Math.floor(sorted.length / 2)]
+  const midI = (years.length - 1) / 2
+  const line = (perDecade: number | null) => {
+    if (perDecade === null) return null
+    const s = perDecade / 10
+    return `${x(0)},${y(midV - s * midI)} ${x(years.length - 1)},${y(midV + s * midI)}`
+  }
+  const lowLine = line(stats.ciLow)
+  const highLine = line(stats.ciHigh)
+  const senLine = line(stats.slopePerDecade)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full overflow-visible" role="img" aria-label="Yearly values with trend line">
+      {[0.25, 0.5, 0.75].map((f) => (
+        <line key={f} x1={pad} x2={W - pad} y1={H * f} y2={H * f} stroke="rgba(34,211,238,0.08)" />
+      ))}
+      {lowLine && <polyline points={lowLine} fill="none" stroke={color} strokeOpacity="0.35" strokeDasharray="3 3" />}
+      {highLine && <polyline points={highLine} fill="none" stroke={color} strokeOpacity="0.35" strokeDasharray="3 3" />}
+      <polyline points={pts} fill="none" stroke="#67e8f9" strokeWidth="1.5" strokeOpacity="0.85" />
+      {values.map((v, i) => (
+        <circle key={i} cx={x(i)} cy={y(v)} r="2" fill="#a5f3fc" />
+      ))}
+      {senLine && <polyline points={senLine} fill="none" stroke={color} strokeWidth="2.5" style={{ filter: `drop-shadow(0 0 4px ${color})` }} />}
+      <text x={pad} y={H + 10} fill="#64748b" fontSize="9">
+        {years[0]}
+      </text>
+      <text x={W - pad} y={H + 10} fill="#64748b" fontSize="9" textAnchor="end">
+        {years.at(-1)}
+      </text>
+    </svg>
+  )
+}
+
+// ---------- Globe ----------
+
+type GlobeProps = {
+  sites: Site[]
+  colors: Record<string, string>
+  selected: string | null
+  focus: { lat: number; lon: number; t: number } | null
+  spinning: boolean
+  onPick: (id: string) => void
+}
+
+function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const rot = useRef<[number, number]>([-40, -20])
+  const drag = useRef<{ x: number; y: number; r: [number, number]; moved: boolean } | null>(null)
+  const anim = useRef<{ from: [number, number]; to: [number, number]; t0: number } | null>(null)
+  const size = useRef({ w: 600, h: 600 })
+  const hover = useRef<string | null>(null)
+  // Latest props for the animation loop, which runs once and must not restart on every change.
+  const live = useRef({ sites, colors, selected, spinning })
+  useEffect(() => {
+    live.current = { sites, colors, selected, spinning }
+  }, [sites, colors, selected, spinning])
+
+  useEffect(() => {
+    if (focus) anim.current = { from: [...rot.current], to: [-focus.lon, -focus.lat], t0: performance.now() }
+  }, [focus])
+
+  useEffect(() => {
+    const el = canvas.current!
+    const ctx = el.getContext('2d')!
+    const ro = new ResizeObserver(([e]) => {
+      const dpr = window.devicePixelRatio || 1
+      size.current = { w: e.contentRect.width, h: e.contentRect.height }
+      el.width = e.contentRect.width * dpr
+      el.height = e.contentRect.height * dpr
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    })
+    ro.observe(el)
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let raf = 0
+    let last = performance.now()
+
+    const frame = (now: number) => {
+      const { sites, colors, selected, spinning } = live.current
+      const dt = Math.min(64, now - last)
+      last = now
+      if (anim.current) {
+        const k = Math.min(1, (now - anim.current.t0) / 1100)
+        const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2
+        let dl = anim.current.to[0] - anim.current.from[0]
+        dl = ((((dl + 180) % 360) + 360) % 360) - 180 // shortest way round
+        rot.current = [anim.current.from[0] + dl * e, anim.current.from[1] + (anim.current.to[1] - anim.current.from[1]) * e]
+        if (k >= 1) anim.current = null
+      } else if (spinning && !drag.current && !reduced) {
+        rot.current = [rot.current[0] + dt * 0.006, rot.current[1]]
+      }
+
+      const { w, h } = size.current
+      const r = Math.min(w, h) * 0.42
+      const proj = geoOrthographic().rotate(rot.current).translate([w / 2, h / 2]).scale(r).clipAngle(90)
+      const path = geoPath(proj, ctx)
+      ctx.clearRect(0, 0, w, h)
+
+      // Atmosphere glow and ocean.
+      const glow = ctx.createRadialGradient(w / 2, h / 2, r * 0.9, w / 2, h / 2, r * 1.22)
+      glow.addColorStop(0, 'rgba(34,211,238,0.28)')
+      glow.addColorStop(1, 'rgba(34,211,238,0)')
+      ctx.fillStyle = glow
+      ctx.beginPath()
+      ctx.arc(w / 2, h / 2, r * 1.22, 0, 2 * Math.PI)
+      ctx.fill()
+      const ocean = ctx.createRadialGradient(w / 2 - r * 0.35, h / 2 - r * 0.35, r * 0.1, w / 2, h / 2, r)
+      ocean.addColorStop(0, '#0b2a3d')
+      ocean.addColorStop(1, '#030b14')
+      ctx.fillStyle = ocean
+      ctx.beginPath()
+      path({ type: 'Sphere' })
+      ctx.fill()
+
+      ctx.beginPath()
+      path(GRATICULE)
+      ctx.strokeStyle = 'rgba(34,211,238,0.10)'
+      ctx.lineWidth = 0.6
+      ctx.stroke()
+
+      ctx.beginPath()
+      path(LAND)
+      ctx.fillStyle = 'rgba(16,185,129,0.16)'
+      ctx.fill()
+      ctx.beginPath()
+      path(COUNTRIES)
+      ctx.strokeStyle = 'rgba(52,211,153,0.35)'
+      ctx.lineWidth = 0.5
+      ctx.stroke()
+
+      ctx.beginPath()
+      path({ type: 'Sphere' })
+      ctx.strokeStyle = 'rgba(34,211,238,0.55)'
+      ctx.lineWidth = 1.2
+      ctx.stroke()
+
+      // Site markers: pulsing rings, coloured by the trend verdict.
+      const centre: [number, number] = [-rot.current[0], -rot.current[1]]
+      for (const s of sites) {
+        if (s.id === 'glb' || geoDistance([s.lon, s.lat], centre) > Math.PI / 2 - 0.05) continue
+        const p = proj([s.lon, s.lat])
+        if (!p) continue
+        const col = colors[s.id] ?? '#22d3ee'
+        const on = s.id === selected || s.id === hover.current
+        const pulse = reduced ? 0.5 : (now / 1600 + s.lat * 0.01) % 1
+        ctx.beginPath()
+        ctx.arc(p[0], p[1], 5 + pulse * 16, 0, 2 * Math.PI)
+        ctx.strokeStyle = col
+        ctx.globalAlpha = 0.6 * (1 - pulse)
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+        ctx.globalAlpha = 1
+        ctx.beginPath()
+        ctx.arc(p[0], p[1], on ? 6.5 : 4.5, 0, 2 * Math.PI)
+        ctx.fillStyle = col
+        ctx.shadowColor = col
+        ctx.shadowBlur = 14
+        ctx.fill()
+        ctx.shadowBlur = 0
+        if (on) {
+          ctx.strokeStyle = '#e0f2fe'
+          ctx.lineWidth = 1
+          ctx.strokeRect(p[0] - 12, p[1] - 12, 24, 24)
+          ctx.font = '600 11px ui-monospace, monospace'
+          ctx.fillStyle = '#e0f2fe'
+          ctx.fillText(s.name.toUpperCase(), p[0] + 16, p[1] + 4)
+        }
+      }
+      raf = requestAnimationFrame(frame)
+    }
+    raf = requestAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
+  }, [])
+
+  const siteAt = (cx: number, cy: number) => {
+    const { w, h } = size.current
+    const proj = geoOrthographic().rotate(rot.current).translate([w / 2, h / 2]).scale(Math.min(w, h) * 0.42)
+    const centre: [number, number] = [-rot.current[0], -rot.current[1]]
+    let best: string | null = null
+    let bestD = 16
+    for (const s of live.current.sites) {
+      if (s.id === 'glb' || geoDistance([s.lon, s.lat], centre) > Math.PI / 2) continue
+      const p = proj([s.lon, s.lat])
+      if (!p) continue
+      const d = Math.hypot(p[0] - cx, p[1] - cy)
+      if (d < bestD) {
+        bestD = d
+        best = s.id
+      }
+    }
+    return best
+  }
+
+  const local = (e: React.PointerEvent) => {
+    const b = canvas.current!.getBoundingClientRect()
+    return [e.clientX - b.left, e.clientY - b.top] as const
+  }
+
+  return (
+    <canvas
+      ref={canvas}
+      className="h-full w-full cursor-grab touch-none"
+      aria-label="Globe of investigation sites. Drag to rotate; sites are also listed in the side panel."
+      onPointerDown={(e) => {
+        drag.current = { x: e.clientX, y: e.clientY, r: [...rot.current], moved: false }
+        anim.current = null
+        canvas.current!.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => {
+        const [cx, cy] = local(e)
+        hover.current = siteAt(cx, cy)
+        canvas.current!.style.cursor = drag.current ? 'grabbing' : hover.current ? 'pointer' : 'grab'
+        if (!drag.current) return
+        const dx = e.clientX - drag.current.x
+        const dy = e.clientY - drag.current.y
+        if (Math.abs(dx) + Math.abs(dy) > 3) drag.current.moved = true
+        const k = 0.3
+        rot.current = [drag.current.r[0] + dx * k, Math.max(-80, Math.min(80, drag.current.r[1] - dy * k))]
+      }}
+      onPointerUp={(e) => {
+        const wasDrag = drag.current?.moved
+        drag.current = null
+        if (!wasDrag) {
+          const [cx, cy] = local(e)
+          const id = siteAt(cx, cy)
+          if (id) onPick(id)
+        }
+      }}
+    />
+  )
+}
+
+// ---------- Main ----------
+
+type Stage = 'idle' | 'running' | 'done'
+const STAGES = ['Loading 23 years of monthly data', 'Removing the seasonal cycle', 'Averaging over the region', 'Mann-Kendall significance test', "Sen's slope and 95% range"]
+
+export default function CommandCenter() {
+  const [manifest, setManifest] = useState<Manifest | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [regions, setRegions] = useState<Record<string, RegionsFile>>({})
+  const [checks, setChecks] = useState<Check[]>([])
+  const [varId, setVarId] = useState('aod')
+  const [siteId, setSiteId] = useState<string | null>(null)
+  const [focus, setFocus] = useState<{ lat: number; lon: number; t: number } | null>(null)
+  const [query, setQuery] = useState('')
+  const [biome, setBiome] = useState<Biome | 'all'>('all')
+  const [onlySig, setOnlySig] = useState(false)
+  const [spinning, setSpinning] = useState(true)
+  const [stage, setStage] = useState<Stage>('idle')
+  const [step, setStep] = useState(0)
+  const [now, setNow] = useState(() => new Date())
+  const [guide, setGuide] = useState(false)
+  const [interest, setInterest] = useState<(typeof INTERESTS)[number]['id'] | null>(null)
+  const [place, setPlace] = useState<Biome | null>(null)
+  const [demo, setDemo] = useState<{ i: number; step: number } | null>(null)
+  const timers = useRef<number[]>([])
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+
+  useEffect(() => {
+    fetch(dataUrl('manifest.json'))
+      .then((r) => {
+        if (!r.ok) throw new Error(`manifest.json: HTTP ${r.status}. Run pipeline/scripts/make_mock.py first.`)
+        return r.json() as Promise<Manifest>
+      })
+      .then(async (m) => {
+        setManifest(m)
+        if (!m.variables.some((v) => v.id === 'aod')) setVarId(m.variables[0].id)
+        const files = await Promise.all(m.variables.map((v) => fetch(dataUrl(v.regions)).then((r) => r.json() as Promise<RegionsFile>)))
+        setRegions(Object.fromEntries(files.map((f) => [f.variable, f])))
+        const val = await fetch(dataUrl(m.files.validation)).then((r) => r.json())
+        setChecks(val.checks ?? [])
+      })
+      .catch((e: Error) => setError(e.message))
+  }, [])
+
+  const clearTimers = () => {
+    timers.current.forEach((t) => window.clearTimeout(t))
+    timers.current = []
+  }
+  useEffect(() => clearTimers, [])
+
+  const variable = manifest?.variables.find((v) => v.id === varId)
+  const series = useCallback((vid: string, sid: string): RegionSeries | undefined => regions[vid]?.regions.find((r) => r.id === sid)?.seasons.ANN, [regions])
+  const colors = useMemo(() => Object.fromEntries(SITES.map((s) => [s.id, VERDICT_COLOR[verdictOf(series(varId, s.id)?.stats)]])), [series, varId])
+
+  const visible = SITES.filter(
+    (s) =>
+      (biome === 'all' || s.biome === biome) &&
+      s.name.toLowerCase().includes(query.toLowerCase()) &&
+      (!onlySig || ['rising', 'falling'].includes(verdictOf(series(varId, s.id)?.stats))),
+  )
+
+  const select = useCallback((id: string) => {
+    const s = SITES.find((x) => x.id === id)!
+    setSiteId(id)
+    setStage('idle')
+    setStep(0)
+    setSpinning(false)
+    if (id !== 'glb') setFocus({ lat: s.lat, lon: s.lon, t: Date.now() })
+  }, [])
+
+  const runDiagnostic = useCallback(() => {
+    setStage('running')
+    setStep(0)
+    STAGES.forEach((_, i) => timers.current.push(window.setTimeout(() => setStep(i + 1), 420 * (i + 1))))
+    timers.current.push(window.setTimeout(() => setStage('done'), 420 * (STAGES.length + 1)))
+  }, [])
+
+  // Demo playback: select, fly, run the test, pause on the verdict, then move to the next step.
+  const playDemo = useCallback(
+    function play(i: number, stepIndex: number) {
+      const d = DEMOS[i]
+      const s = d.steps[stepIndex]
+      clearTimers()
+      setDemo({ i, step: stepIndex })
+      setVarId(s.varId)
+      select(s.siteId)
+      timers.current.push(window.setTimeout(runDiagnostic, 1400))
+      if (stepIndex + 1 < d.steps.length) timers.current.push(window.setTimeout(() => play(i, stepIndex + 1), 9000))
+    },
+    [select, runDiagnostic],
+  )
+
+  const site = SITES.find((s) => s.id === siteId) ?? null
+  const cur = site ? series(varId, site.id) : undefined
+  const verdict = verdictOf(cur?.stats)
+  const def = DEFINITIONS[varId]
+  const years = regions[varId]?.years ?? []
+  const passed = checks.filter((c) => c.status === 'pass').length
+  const leads = LEADS.filter(
+    (l) =>
+      (!interest || (INTERESTS.find((i) => i.id === interest)!.vars as readonly string[]).includes(l.varId)) &&
+      (!place || SITES.find((s) => s.id === l.siteId)?.biome === place),
+  )
+
+  if (error) return <div className="cc-grid flex h-screen items-center justify-center p-6 font-mono text-rose-300">{error}</div>
+  if (!manifest || !variable) return <div className="cc-grid flex h-screen items-center justify-center font-mono tracking-[0.3em] text-cyan-300">INITIALISING…</div>
+
+  return (
+    <div className="cc-grid relative flex h-screen flex-col overflow-hidden font-sans text-slate-200">
+      <div className="cc-scan pointer-events-none absolute inset-x-0 top-0 z-0 h-24 bg-gradient-to-b from-transparent via-cyan-400/5 to-transparent" />
+
+      {/* Header telemetry */}
+      <header className="cc-glass relative z-10 m-3 mb-0 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <Radar className="h-5 w-5 text-cyan-300" />
+          <h1 className="cc-glow text-sm font-bold tracking-[0.25em] text-cyan-200">TREND DETECTIVE</h1>
+          <span className="hidden text-[10px] tracking-[0.2em] text-slate-500 sm:inline">// EARTH CHANGE COMMAND</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-cyan-400" />
+            {now.toISOString().slice(0, 19).replace('T', ' ')} UTC
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Database className="h-3.5 w-3.5 text-cyan-400" />
+            WINDOW {manifest.window.start.slice(0, 4)}–{manifest.window.end.slice(0, 4)}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Activity className="h-3.5 w-3.5 text-emerald-400" />
+            {manifest.variables.length} ACTIVE · {manifest.catalogue?.length ?? 0} CATALOGUED
+          </span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            VALIDATION {passed}/{checks.length}
+          </span>
+          <span className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${manifest.mock ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+            <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${manifest.mock ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+            {manifest.mock ? 'MOCK FEED' : 'NASA DATA'}
+          </span>
+        </div>
+        <nav className="ml-auto flex gap-2">
+          <button
+            onClick={() => setGuide(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/20"
+          >
+            <Compass className="h-3.5 w-3.5" /> Start investigating
+          </button>
+          <a href="#/map" className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 px-3 py-1.5 text-xs text-cyan-200 transition hover:bg-cyan-400/10">
+            <MapIcon className="h-3.5 w-3.5" /> Trend map
+          </a>
+        </nav>
+      </header>
+
+      <main className="relative z-10 flex min-h-0 flex-1 gap-3 p-3">
+        {/* Left sidebar: variable, filters, sites, demos */}
+        <aside className="cc-glass flex w-72 shrink-0 flex-col gap-4 overflow-y-auto rounded-xl p-4 max-lg:hidden">
+          <section>
+            <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">VARIABLE</h2>
+            <div className="grid grid-cols-2 gap-1.5">
+              {manifest.variables.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => {
+                    setVarId(v.id)
+                    setStage('idle')
+                  }}
+                  aria-pressed={v.id === varId}
+                  className={`rounded-md border px-2 py-1.5 text-left text-xs transition ${v.id === varId ? 'border-cyan-300/70 bg-cyan-400/15 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.25)]' : 'border-slate-700/70 text-slate-400 hover:border-cyan-400/40 hover:text-slate-200'}`}
+                >
+                  {DEFINITIONS[v.id]?.short ?? v.label}
+                  {v.caution && <AlertTriangle className="ml-1 inline h-3 w-3 text-amber-400" aria-label="caution" />}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+              <HelpCircle className="mr-1 inline h-3 w-3 text-cyan-400" />
+              {def?.plain ?? variable.label}
+              {def && <span className="mt-1 block text-[10px] tracking-wider text-slate-500">SOURCE · {def.source}</span>}
+            </p>
+            {variable.caution && <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-200">{variable.caution}</p>}
+          </section>
+
+          <section>
+            <h2 className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">
+              <Filter className="h-3 w-3" /> FILTER SITES
+            </h2>
+            <label className="flex items-center gap-2 rounded-md border border-slate-700/70 bg-slate-900/50 px-2 py-1.5">
+              <Search className="h-3.5 w-3.5 text-slate-500" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search sites" aria-label="Search sites" className="w-full bg-transparent text-xs outline-none placeholder:text-slate-600" />
+            </label>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {(['all', ...new Set(SITES.map((s) => s.biome))] as const).map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBiome(b)}
+                  aria-pressed={biome === b}
+                  className={`rounded-full border px-2 py-0.5 text-[10px] transition ${biome === b ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+            <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] text-slate-400">
+              <input type="checkbox" checked={onlySig} onChange={(e) => setOnlySig(e.target.checked)} className="accent-cyan-400" /> Significant trends only
+            </label>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">SITES · {visible.length}</h2>
+            <ul className="space-y-1">
+              {visible.map((s) => {
+                const v = verdictOf(series(varId, s.id)?.stats)
+                return (
+                  <li key={s.id}>
+                    <button
+                      onClick={() => select(s.id)}
+                      className={`group flex w-full items-center gap-2 rounded-md border px-2 py-2 text-left transition ${s.id === siteId ? 'border-cyan-300/60 bg-cyan-400/10' : 'border-transparent hover:border-cyan-400/25 hover:bg-cyan-400/5'}`}
+                    >
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 8px ${VERDICT_COLOR[v]}` }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs text-slate-200">{s.name}</span>
+                        <span className="block text-[10px] text-slate-500">
+                          {s.biome} · {VERDICT_TEXT[v]}
+                        </span>
+                      </span>
+                      <ChevronRight className="h-3.5 w-3.5 text-slate-600 transition group-hover:translate-x-0.5 group-hover:text-cyan-300" />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">DEMO CASES</h2>
+            {DEMOS.map((d, i) => (
+              <button
+                key={d.title}
+                onClick={() => playDemo(i, 0)}
+                className="mb-1.5 flex w-full items-start gap-2 rounded-md border border-slate-700/70 p-2 text-left transition hover:border-emerald-400/50 hover:bg-emerald-400/5"
+              >
+                <Play className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                <span>
+                  <span className="block text-xs text-slate-200">{d.title}</span>
+                  <span className="block text-[10px] text-slate-500">{d.blurb}</span>
+                </span>
+              </button>
+            ))}
+          </section>
+        </aside>
+
+        {/* Globe */}
+        <section className="relative min-w-0 flex-1">
+          <Globe sites={SITES} colors={colors} selected={siteId} focus={focus} spinning={spinning} onPick={select} />
+
+          <div className="cc-glass absolute bottom-3 left-3 flex flex-wrap items-center gap-3 rounded-lg px-3 py-2 text-[10px] tracking-wider text-slate-400">
+            {(['rising', 'falling', 'noise'] as const).map((v) => (
+              <span key={v} className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 6px ${VERDICT_COLOR[v]}` }} />
+                {VERDICT_TEXT[v].toUpperCase()}
+              </span>
+            ))}
+            <span className="text-slate-600">|</span>
+            <span>{(def?.short ?? variable.label).toUpperCase()} · YEARLY · p &lt; 0.05</span>
+          </div>
+          <button
+            onClick={() => setSpinning((s) => !s)}
+            className="cc-glass absolute right-3 bottom-3 rounded-lg p-2 text-cyan-300 transition hover:text-cyan-100"
+            aria-label={spinning ? 'Pause rotation' : 'Resume rotation'}
+          >
+            {spinning ? <Pause className="h-4 w-4" /> : <Globe2 className="h-4 w-4" />}
+          </button>
+
+          {/* Site picker for small screens, where the sidebar is hidden */}
+          <div className="absolute inset-x-3 top-3 flex gap-2 overflow-x-auto lg:hidden">
+            {SITES.map((s) => (
+              <button key={s.id} onClick={() => select(s.id)} className="cc-glass shrink-0 rounded-full px-3 py-1 text-xs">
+                {s.name}
+              </button>
+            ))}
+          </div>
+
+          {demo && (
+            <div className="cc-glass cc-rise absolute inset-x-3 top-3 mx-auto flex max-w-xl items-start gap-3 rounded-xl p-3 max-lg:top-14">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+              <p className="flex-1 text-sm text-slate-100">{DEMOS[demo.i].steps[demo.step].caption}</p>
+              {demo.step + 1 < DEMOS[demo.i].steps.length && (
+                <button onClick={() => playDemo(demo.i, demo.step + 1)} className="text-xs text-cyan-300 hover:text-cyan-100">
+                  Next
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  clearTimers()
+                  setDemo(null)
+                }}
+                aria-label="End demo"
+              >
+                <X className="h-4 w-4 text-slate-400 hover:text-slate-100" />
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Analysis panel */}
+        {site && (
+          <aside
+            key={site.id + varId}
+            className="cc-glass cc-slide absolute top-3 right-3 bottom-3 z-20 flex w-[min(380px,calc(100%-24px))] flex-col overflow-y-auto rounded-xl p-4 lg:static lg:w-96"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] tracking-[0.2em] text-cyan-400">SITE ANALYSIS · {site.biome.toUpperCase()}</p>
+                <h2 className="cc-glow mt-0.5 text-lg font-semibold text-cyan-50">{site.name}</h2>
+                <p className="font-mono text-[11px] text-slate-500">
+                  <Crosshair className="mr-1 inline h-3 w-3" />
+                  {Math.abs(site.lat).toFixed(1)}°{site.lat >= 0 ? 'N' : 'S'} {Math.abs(site.lon).toFixed(1)}°{site.lon >= 0 ? 'E' : 'W'}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setSiteId(null)
+                  setSpinning(true)
+                }}
+                className="rounded-md p-1 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
+                aria-label="Close panel"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-slate-400">{site.blurb}</p>
+
+            {cur ? (
+              <>
+                <div className="mt-4 rounded-lg border border-cyan-400/15 bg-slate-950/40 p-3 pb-4">
+                  <div className="mb-1 flex justify-between text-[10px] tracking-wider text-slate-400">
+                    <span>{(def?.short ?? variable.label).toUpperCase()} · YEARLY ANOMALY</span>
+                  </div>
+                  <SeriesChart years={years} values={cur.values} stats={cur.stats} color={VERDICT_COLOR[verdict]} />
+                  <p className="mt-3 text-[10px] text-slate-500">Dots: each year. Bright line: Sen’s trend. Dashed: 95% range of the trend.</p>
+                </div>
+
+                <button
+                  onClick={runDiagnostic}
+                  disabled={stage === 'running'}
+                  className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-cyan-300/50 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 py-2.5 text-sm font-semibold tracking-wider text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.15)] transition hover:from-cyan-500/30 hover:to-emerald-500/30 disabled:opacity-70"
+                >
+                  {stage === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
+                  {stage === 'running' ? 'RUNNING TREND TEST…' : stage === 'done' ? 'RUN AGAIN' : 'RUN TREND TEST'}
+                </button>
+
+                {stage !== 'idle' && (
+                  <ol className="mt-3 space-y-1 font-mono text-[11px]" aria-live="polite">
+                    {STAGES.map((s, i) => (
+                      <li key={s} className={`flex items-center gap-2 transition ${i < step ? 'text-emerald-300' : i === step && stage === 'running' ? 'text-cyan-200' : 'text-slate-600'}`}>
+                        {i < step ? <CheckCircle2 className="h-3 w-3" /> : i === step && stage === 'running' ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="h-3 w-3" />}
+                        {s}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                {stage === 'done' && (
+                  <div className="cc-rise mt-4 space-y-4">
+                    <div className="flex items-start gap-3 rounded-lg border p-3" style={{ borderColor: `${VERDICT_COLOR[verdict]}66`, background: `${VERDICT_COLOR[verdict]}14` }}>
+                      {verdict === 'noise' ? <XCircle className="h-5 w-5 shrink-0 text-slate-300" /> : <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: VERDICT_COLOR[verdict] }} />}
+                      <div>
+                        <p className="text-sm font-semibold text-slate-100">
+                          {verdict === 'noise' ? 'Not proven: could be year-to-year noise' : `Real trend: ${(def?.short ?? 'value').toLowerCase()} is ${verdict}`}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-400">
+                          {verdict === 'noise'
+                            ? `A pattern this size would turn up by chance more than 1 time in 20 (p = ${fmtP(cur.stats.p)}).`
+                            : `A trend this strong would appear by chance less than 1 time in 20 (p = ${fmtP(cur.stats.p)}).`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-around">
+                      <Ring value={cur.stats.p === null ? 0 : 1 - cur.stats.p} label={cur.stats.p === null ? '–' : `${Math.floor(100 * (1 - cur.stats.p))}%`} sub="1 − p value" color={VERDICT_COLOR[verdict]} />
+                      <Ring value={Math.min(1, Math.abs(cur.stats.snr ?? 0) / 2)} label={fmt(cur.stats.snr, 2)} sub="Signal / noise" color="#22d3ee" />
+                      <Ring value={years.length ? cur.stats.n / years.length : 0} label={`${cur.stats.n}`} sub="Years used" color="#34d399" />
+                    </div>
+
+                    <div className="space-y-3">
+                      <Bar
+                        label="Rate of change"
+                        value={cur.stats.slopePerDecade ?? 0}
+                        max={Math.max(Math.abs(cur.stats.ciLow ?? 0), Math.abs(cur.stats.ciHigh ?? 0), 1e-9)}
+                        color={VERDICT_COLOR[verdict]}
+                        text={`${(cur.stats.slopePerDecade ?? 0) > 0 ? '+' : ''}${fmt(cur.stats.slopePerDecade)} ${variable.trendUnits}`}
+                      />
+                      <Bar label="95% range" value={1} max={1} color="rgba(34,211,238,0.5)" text={`${fmt(cur.stats.ciLow)} to ${fmt(cur.stats.ciHigh)}`} />
+                      <Bar
+                        label={`Total change ${years[0]}–${years.at(-1)}`}
+                        value={Math.abs(cur.stats.slopePerDecade ?? 0)}
+                        max={Math.max(Math.abs(cur.stats.ciLow ?? 0), Math.abs(cur.stats.ciHigh ?? 0), 1e-9)}
+                        color="#34d399"
+                        text={`${fmt(cur.stats.totalChange)}${cur.stats.relChange != null ? ` (${(100 * cur.stats.relChange).toFixed(0)}%)` : ''}`}
+                      />
+                    </div>
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      Method: Mann-Kendall test corrected for year-to-year memory, plus Sen’s slope, on yearly averages over the region. Map cells use false-discovery-rate control (q ≤{' '}
+                      {manifest.fdrAlpha}).
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="mt-4 text-xs text-slate-500">No regional series for this variable yet.</p>
+            )}
+          </aside>
+        )}
+      </main>
+
+      {/* Validation ticker */}
+      <footer className="relative z-10 mx-3 mb-3 flex items-center gap-4 overflow-x-auto rounded-lg border border-cyan-400/10 bg-slate-950/50 px-3 py-1.5 font-mono text-[10px] whitespace-nowrap text-slate-500">
+        <span className="text-cyan-400">CHECKS VS PUBLISHED RECORDS</span>
+        {checks.map((c) => (
+          <span key={c.id} className="flex items-center gap-1" title={c.note}>
+            {c.status === 'pass' ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> : c.status === 'fail' ? <XCircle className="h-3 w-3 text-rose-400" /> : <Loader2 className="h-3 w-3 text-slate-500" />}
+            {c.name}
+          </span>
+        ))}
+      </footer>
+
+      {/* Guided investigation: what and where */}
+      {guide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onClick={() => setGuide(false)}>
+          <div className="cc-glass cc-rise max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl p-5" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Start investigating">
+            <div className="flex items-center justify-between">
+              <h2 className="cc-glow flex items-center gap-2 text-base font-semibold text-cyan-100">
+                <Compass className="h-4 w-4" /> Become a data detective
+              </h2>
+              <button onClick={() => setGuide(false)} aria-label="Close">
+                <X className="h-4 w-4 text-slate-400 hover:text-slate-100" />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">Answer two questions and we’ll suggest where a trend might be hiding, based on published research.</p>
+
+            <h3 className="mt-4 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">1 · WHAT INTERESTS YOU?</h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {INTERESTS.map((i) => (
+                <button
+                  key={i.id}
+                  onClick={() => setInterest(interest === i.id ? null : i.id)}
+                  aria-pressed={interest === i.id}
+                  className={`rounded-lg border px-3 py-1.5 text-xs transition ${interest === i.id ? 'border-cyan-300/70 bg-cyan-400/15 text-cyan-100' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
+                >
+                  {i.label}
+                </button>
+              ))}
+            </div>
+
+            <h3 className="mt-4 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">2 · WHAT KIND OF PLACE?</h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PLACES.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPlace(place === p.id ? null : p.id)}
+                  aria-pressed={place === p.id}
+                  className={`rounded-lg border px-3 py-1.5 text-xs transition ${place === p.id ? 'border-emerald-300/70 bg-emerald-400/15 text-emerald-100' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <h3 className="mt-5 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">LEADS · {leads.length}</h3>
+            <ul className="mt-2 space-y-2">
+              {leads.map((l) => {
+                const s = SITES.find((x) => x.id === l.siteId)!
+                return (
+                  <li key={l.varId + l.siteId}>
+                    <button
+                      onClick={() => {
+                        setGuide(false)
+                        clearTimers()
+                        setDemo(null)
+                        setVarId(l.varId)
+                        select(l.siteId)
+                      }}
+                      className="w-full rounded-lg border border-slate-700/70 p-3 text-left transition hover:border-cyan-400/50 hover:bg-cyan-400/5"
+                    >
+                      <span className="flex items-center justify-between text-sm text-slate-100">
+                        {DEFINITIONS[l.varId]?.short} · {s.name}
+                        <ChevronRight className="h-4 w-4 text-cyan-400" />
+                      </span>
+                      <span className="mt-0.5 block text-xs text-slate-400">{l.why}</span>
+                    </button>
+                  </li>
+                )
+              })}
+              {!leads.length && <li className="text-xs text-slate-500">No leads for that pair yet. Try another place, or explore the globe freely.</li>}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
