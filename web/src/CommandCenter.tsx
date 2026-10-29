@@ -34,18 +34,19 @@ import { dataUrl, type Manifest, type TrendStats } from './contract'
 
 type Biome = 'megacity air' | 'farmland' | 'rainforest' | 'desert edge' | 'polar' | 'dryland' | 'temperate' | 'planet'
 
-type Site = { id: string; name: string; lat: number; lon: number; biome: Biome; blurb: string }
+// bbox = [west, south, east, north], the averaging box in pipeline/td/regions.py.
+type Site = { id: string; name: string; lat: number; lon: number; biome: Biome; blurb: string; bbox: [number, number, number, number] }
 
-// Centres of the analysis boxes in pipeline/td/regions.py.
+// Marker positions: the centres of the analysis boxes.
 const SITES: Site[] = [
-  { id: 'glb', name: 'Whole world', lat: 0, lon: 0, biome: 'planet', blurb: 'Every grid cell, area-weighted. Global trends are rare but powerful.' },
-  { id: 'arc', name: 'Arctic', lat: 78, lon: 0, biome: 'polar', blurb: 'Warming about four times faster than the planet as a whole.' },
-  { id: 'eas', name: 'Eastern China', lat: 34, lon: 116, biome: 'megacity air', blurb: 'Hundreds of millions of people, heavy industry and clean-air laws since 2013.' },
-  { id: 'igp', name: 'Indo-Gangetic Plain', lat: 26, lon: 81.5, biome: 'farmland', blurb: 'One of the most farmed, irrigated and polluted plains on Earth.' },
-  { id: 'eur', name: 'Europe', lat: 50, lon: 10, biome: 'temperate', blurb: 'Decades of emission controls; heatwaves becoming more common.' },
-  { id: 'amz', name: 'Amazon', lat: -4, lon: -60, biome: 'rainforest', blurb: 'The largest rainforest, under drought and deforestation pressure.' },
-  { id: 'sah', name: 'Sahel', lat: 14, lon: 10, biome: 'desert edge', blurb: 'The strip south of the Sahara where rainfall swings decade to decade.' },
-  { id: 'aus', name: 'Australia', lat: -25, lon: 134, biome: 'dryland', blurb: 'A dry continent with record bushfires and droughts.' },
+  { id: 'glb', name: 'Whole world', lat: 0, lon: 0, biome: 'planet', blurb: 'Every grid cell, area-weighted. Global trends are rare but powerful.', bbox: [-180, -90, 180, 90] },
+  { id: 'arc', name: 'Arctic', lat: 78, lon: 0, biome: 'polar', blurb: 'Warming about four times faster than the planet as a whole.', bbox: [-180, 66, 180, 90] },
+  { id: 'eas', name: 'Eastern China', lat: 34, lon: 116, biome: 'megacity air', blurb: 'Hundreds of millions of people, heavy industry and clean-air laws since 2013.', bbox: [110, 28, 122, 40] },
+  { id: 'igp', name: 'Indo-Gangetic Plain', lat: 26, lon: 81.5, biome: 'farmland', blurb: 'One of the most farmed, irrigated and polluted plains on Earth.', bbox: [75, 22, 88, 30] },
+  { id: 'eur', name: 'Europe', lat: 50, lon: 10, biome: 'temperate', blurb: 'Decades of emission controls; heatwaves becoming more common.', bbox: [-10, 40, 30, 60] },
+  { id: 'amz', name: 'Amazon', lat: -4, lon: -60, biome: 'rainforest', blurb: 'The largest rainforest, under drought and deforestation pressure.', bbox: [-70, -10, -50, 2] },
+  { id: 'sah', name: 'Sahel', lat: 14, lon: 10, biome: 'desert edge', blurb: 'The strip south of the Sahara where rainfall swings decade to decade.', bbox: [-15, 10, 35, 18] },
+  { id: 'aus', name: 'Australia', lat: -25, lon: 134, biome: 'dryland', blurb: 'A dry continent with record bushfires and droughts.', bbox: [115, -38, 153, -12] },
 ]
 
 const DEFINITIONS: Record<string, { short: string; plain: string; source: string }> = {
@@ -120,6 +121,20 @@ const LAND = feature(topo, topo.objects.land) as GeoPermissibleObjects
 const COUNTRIES = feature(topo, topo.objects.countries) as GeoPermissibleObjects
 const GRATICULE = geoGraticule10()
 
+// Box outline as a densified line, so its edges follow parallels on the globe instead of great circles.
+function boxOutline([w, s, e, n]: Site['bbox']): GeoPermissibleObjects {
+  const pts: [number, number][] = []
+  const step = (a: number, b: number) => {
+    const k = Math.max(2, Math.ceil(Math.abs(b - a) / 2) + 1)
+    return Array.from({ length: k }, (_, i) => a + ((b - a) * i) / (k - 1))
+  }
+  for (const x of step(w, e)) pts.push([x, s])
+  for (const y of step(s, n)) pts.push([e, y])
+  for (const x of step(e, w)) pts.push([x, n])
+  for (const y of step(n, s)) pts.push([w, y])
+  return { type: 'LineString', coordinates: pts }
+}
+
 type Verdict = 'rising' | 'falling' | 'noise' | 'unknown'
 const verdictOf = (s?: TrendStats): Verdict => {
   if (!s || s.p === null || s.slopePerDecade === null) return 'unknown'
@@ -127,14 +142,15 @@ const verdictOf = (s?: TrendStats): Verdict => {
   return s.slopePerDecade > 0 ? 'rising' : 'falling'
 }
 const VERDICT_COLOR: Record<Verdict, string> = { rising: '#fb7185', falling: '#38bdf8', noise: '#94a3b8', unknown: '#475569' }
-const VERDICT_TEXT: Record<Verdict, string> = { rising: 'Rising', falling: 'Falling', noise: 'Could be noise', unknown: 'No data' }
+const VERDICT_TEXT: Record<Verdict, string> = { rising: 'Rising', falling: 'Falling', noise: 'Not proven', unknown: 'No data' }
 
 const fmt = (x: number | null | undefined, d = 3) => (x === null || x === undefined || !Number.isFinite(x) ? '–' : Math.abs(x) >= 100 ? x.toFixed(0) : x.toPrecision(d))
-const fmtP = (p: number | null | undefined) => (p === null || p === undefined ? '–' : p < 0.001 ? '< 0.001' : p.toFixed(3))
+// Returns the comparison too, so text reads "p = 0.064" or "p < 0.001".
+const fmtP = (p: number | null | undefined) => (p === null || p === undefined ? '= –' : p < 0.001 ? '< 0.001' : `= ${p.toFixed(3)}`)
 
 // ---------- Small visual pieces ----------
 
-function Ring({ value, label, sub, color }: { value: number; label: string; sub: string; color: string }) {
+function Ring({ value, label, sub, color, info }: { value: number; label: string; sub: string; color: string; info: string }) {
   const r = 30
   const c = 2 * Math.PI * r
   const v = Math.max(0, Math.min(1, value))
@@ -158,17 +174,23 @@ function Ring({ value, label, sub, color }: { value: number; label: string; sub:
         </svg>
         <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-100">{label}</span>
       </div>
-      <div className="text-[10px] tracking-widest text-slate-400 uppercase">{sub}</div>
+      <div className="text-[10px] tracking-widest text-slate-400 uppercase">
+        {sub}
+        <Info text={info} />
+      </div>
     </div>
   )
 }
 
-function Bar({ label, value, max, color, text }: { label: string; value: number; max: number; color: string; text: string }) {
+function Bar({ label, value, max, color, text, info }: { label: string; value: number; max: number; color: string; text: string; info: string }) {
   const pct = Math.max(2, Math.min(100, (Math.abs(value) / max) * 100))
   return (
     <div>
       <div className="mb-1 flex justify-between gap-2 text-[11px] tracking-wider text-slate-400 uppercase">
-        <span>{label}</span>
+        <span>
+          {label}
+          <Info text={info} />
+        </span>
         <span className="text-right font-mono text-slate-200 normal-case">{text}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-slate-800/80">
@@ -200,11 +222,48 @@ function SeriesChart({ years, values, stats, color }: { years: number[]; values:
   const lowLine = line(stats.ciLow)
   const highLine = line(stats.ciHigh)
   const senLine = line(stats.slopePerDecade)
+  const [hover, setHover] = useState<number | null>(null)
+  const zeroY = lo < 0 && hi > 0 ? y(0) : null
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full overflow-visible" role="img" aria-label="Yearly values with trend line">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full overflow-visible"
+      role="img"
+      aria-label="One dot per year with the trend line"
+      onPointerLeave={() => setHover(null)}
+      onPointerMove={(e) => {
+        const b = e.currentTarget.getBoundingClientRect()
+        const fx = ((e.clientX - b.left) / b.width) * W
+        setHover(Math.max(0, Math.min(years.length - 1, Math.round(((fx - pad) / (W - 2 * pad)) * (years.length - 1)))))
+      }}
+    >
       {[0.25, 0.5, 0.75].map((f) => (
         <line key={f} x1={pad} x2={W - pad} y1={H * f} y2={H * f} stroke="rgba(34,211,238,0.08)" />
       ))}
+      {zeroY !== null && (
+        <>
+          <line x1={pad} x2={W - pad} y1={zeroY} y2={zeroY} stroke="rgba(148,163,184,0.35)" strokeDasharray="1 3" />
+          <text x={W - pad} y={zeroY - 3} fill="#64748b" fontSize="8" textAnchor="end">
+            usual level
+          </text>
+        </>
+      )}
+      <text x={pad} y={9} fill="#64748b" fontSize="8">
+        ▲ above usual
+      </text>
+      <text x={pad} y={H - 1} fill="#64748b" fontSize="8">
+        ▼ below usual
+      </text>
+      {hover !== null && (
+        <>
+          <line x1={x(hover)} x2={x(hover)} y1={0} y2={H} stroke="rgba(165,243,252,0.35)" />
+          <circle cx={x(hover)} cy={y(values[hover])} r="4" fill="none" stroke="#e0f2fe" />
+          <text x={Math.min(W - 70, Math.max(pad, x(hover) + 6))} y={Math.max(20, y(values[hover]) - 8)} fill="#e0f2fe" fontSize="10" fontFamily="ui-monospace, monospace">
+            {years[hover]}: {values[hover] > 0 ? '+' : ''}
+            {fmt(values[hover], 2)}
+          </text>
+        </>
+      )}
       {lowLine && <polyline points={lowLine} fill="none" stroke={color} strokeOpacity="0.35" strokeDasharray="3 3" />}
       {highLine && <polyline points={highLine} fill="none" stroke={color} strokeOpacity="0.35" strokeDasharray="3 3" />}
       <polyline points={pts} fill="none" stroke="#67e8f9" strokeWidth="1.5" strokeOpacity="0.85" />
@@ -324,6 +383,20 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
       ctx.lineWidth = 1.2
       ctx.stroke()
 
+      const sel = sites.find((s) => s.id === selected && s.id !== 'glb')
+      if (sel) {
+        ctx.beginPath()
+        path(boxOutline(sel.bbox))
+        ctx.strokeStyle = colors[sel.id] ?? '#22d3ee'
+        ctx.lineWidth = 1.5
+        ctx.setLineDash([5, 4])
+        ctx.shadowColor = ctx.strokeStyle
+        ctx.shadowBlur = 10
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.shadowBlur = 0
+      }
+
       // Site markers: pulsing rings, coloured by the trend verdict.
       const centre: [number, number] = [-rot.current[0], -rot.current[1]]
       for (const s of sites) {
@@ -426,7 +499,59 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
 // ---------- Main ----------
 
 type Stage = 'idle' | 'running' | 'done'
-const STAGES = ['Loading 23 years of monthly data', 'Removing the seasonal cycle', 'Averaging over the region', 'Mann-Kendall significance test', "Sen's slope and 95% range"]
+// Each step of the real method, in plain words (technical name in brackets for the curious).
+const STAGES = [
+  'Collecting 23 years of satellite measurements',
+  'Taking out the normal summer–winter swing (seasonal anomalies)',
+  'Averaging over the whole region, one value per year',
+  'Asking: could a pattern like this happen by luck? (Mann-Kendall test)',
+  'Measuring how fast it is changing (Sen’s slope)',
+]
+
+// The detective's method, shown before anything is selected.
+const DETECTIVE_STEPS = [
+  { n: 1, title: 'Pick a clue', text: 'Choose something to measure: heat, water, haze or plants.' },
+  { n: 2, title: 'Pick a place', text: 'Click a glowing site. Most trends are regional, not global.' },
+  { n: 3, title: 'Look at the evidence', text: 'See one dot per year from 2003 to 2025.' },
+  { n: 4, title: 'Test it', text: 'Is the change real, or just natural ups and downs?' },
+]
+
+// One-sentence explanations for every number in the panel.
+const EXPLAIN = {
+  chart: 'Each dot is one year: how far that year was above (up) or below (down) this place’s usual level. The bright line is the trend; the dashed lines show how uncertain its steepness is.',
+  p: 'The p-value is the chance of seeing a trend this strong if nothing were really changing. Below 0.05 (1 in 20) scientists call it “significant”. The ring shows 1 − p: fuller means less likely to be luck.',
+  snr: 'Trend vs. wobble: how big the 23-year change is compared with the normal year-to-year ups and downs. Above 1, the trend stands out from the noise.',
+  years: 'How many years had enough data to count. Years with too many missing months are left out.',
+  rate: 'How much the value changes every 10 years, if the trend carries on at the same speed.',
+  range: 'We are 95% sure the true speed lies between these two numbers. If the range crosses zero, we can’t even be sure of the direction.',
+  total: 'Speed × time: roughly how much the value changed across the whole record.',
+}
+
+function Info({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setOpen(false)}
+        aria-label="What does this mean?"
+        aria-expanded={open}
+        className="ml-1 align-middle text-cyan-400/70 hover:text-cyan-200"
+      >
+        <HelpCircle className="h-3 w-3" />
+      </button>
+      {open && (
+        <span role="tooltip" className="cc-glass absolute top-5 right-0 z-30 w-60 rounded-lg p-2.5 text-left text-[11px] leading-relaxed font-normal tracking-normal text-slate-200 normal-case">
+          {text}
+        </span>
+      )}
+    </span>
+  )
+}
+
+// Units like "AOD/decade" read better spelled out.
+const perDecade = (u: string) => u.replace(/\s*\/\s*decade$/, ' every 10 years').replace(/ per decade$/, ' every 10 years')
 
 export default function CommandCenter() {
   const [manifest, setManifest] = useState<Manifest | null>(null)
@@ -476,6 +601,20 @@ export default function CommandCenter() {
     timers.current = []
   }
   useEffect(() => clearTimers, [])
+
+  // Escape closes the guide first, then the analysis panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (guide) setGuide(false)
+      else if (siteId) {
+        setSiteId(null)
+        setSpinning(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [guide, siteId])
 
   const variable = manifest?.variables.find((v) => v.id === varId)
   const series = useCallback((vid: string, sid: string): RegionSeries | undefined => regions[vid]?.regions.find((r) => r.id === sid)?.seasons.ANN, [regions])
@@ -545,7 +684,7 @@ export default function CommandCenter() {
           <h1 className="cc-glow text-sm font-bold tracking-[0.25em] text-cyan-200">TREND DETECTIVE</h1>
           <span className="hidden text-[10px] tracking-[0.2em] text-slate-500 sm:inline">// EARTH CHANGE COMMAND</span>
         </div>
-        <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] text-slate-400">
+        <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] text-slate-400 max-md:hidden">
           <span className="flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5 text-cyan-400" />
             {now.toISOString().slice(0, 19).replace('T', ' ')} UTC
@@ -682,7 +821,7 @@ export default function CommandCenter() {
         <section className="relative min-w-0 flex-1">
           <Globe sites={SITES} colors={colors} selected={siteId} focus={focus} spinning={spinning} onPick={select} />
 
-          <div className="cc-glass absolute bottom-3 left-3 flex flex-wrap items-center gap-3 rounded-lg px-3 py-2 text-[10px] tracking-wider text-slate-400">
+          <div className="cc-glass absolute bottom-3 left-3 flex max-w-[calc(100%-4.5rem)] flex-wrap items-center gap-3 rounded-lg px-3 py-2 text-[10px] tracking-wider text-slate-400">
             {(['rising', 'falling', 'noise'] as const).map((v) => (
               <span key={v} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 6px ${VERDICT_COLOR[v]}` }} />
@@ -690,7 +829,7 @@ export default function CommandCenter() {
               </span>
             ))}
             <span className="text-slate-600">|</span>
-            <span>{(def?.short ?? variable.label).toUpperCase()} · YEARLY · p &lt; 0.05</span>
+            <span>{(def?.short ?? variable.label).toUpperCase()} · 2003–2025 · REAL = UNDER 1-IN-20 CHANCE OF LUCK</span>
           </div>
           <button
             onClick={() => setSpinning((s) => !s)}
@@ -699,6 +838,41 @@ export default function CommandCenter() {
           >
             {spinning ? <Pause className="h-4 w-4" /> : <Globe2 className="h-4 w-4" />}
           </button>
+
+          {!site && !demo && (
+            <div className="cc-glass cc-rise absolute top-3 right-3 w-72 rounded-xl p-4 max-lg:hidden">
+              <p className="text-[10px] font-semibold tracking-[0.2em] text-cyan-400">YOUR MISSION</p>
+              <p className="mt-1 text-sm text-slate-100">Is {(def?.short ?? variable.label).toLowerCase()} really changing, and where?</p>
+              <ol className="mt-3 space-y-2">
+                {DETECTIVE_STEPS.map((d) => (
+                  <li key={d.n} className="flex gap-2.5">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-cyan-400/50 font-mono text-[10px] text-cyan-200">{d.n}</span>
+                    <span>
+                      <span className="block text-xs font-semibold text-slate-100">{d.title}</span>
+                      <span className="block text-[11px] text-slate-400">{d.text}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                {(['rising', 'falling', 'noise'] as const).map((v) => (
+                  <div key={v} className="rounded-md border border-slate-700/60 bg-slate-950/40 py-1.5">
+                    <div className="text-base font-semibold" style={{ color: VERDICT_COLOR[v], textShadow: `0 0 10px ${VERDICT_COLOR[v]}` }}>
+                      {SITES.filter((s) => verdictOf(series(varId, s.id)?.stats) === v).length}
+                    </div>
+                    <div className="text-[9px] tracking-wider text-slate-500 uppercase">{VERDICT_TEXT[v]}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1 text-center text-[10px] text-slate-500">sites, for {(def?.short ?? variable.label).toLowerCase()}</p>
+              <button
+                onClick={() => playDemo(0, 0)}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/20"
+              >
+                <Play className="h-3.5 w-3.5" /> New here? Watch “{DEMOS[0].title}”
+              </button>
+            </div>
+          )}
 
           {/* Site picker for small screens, where the sidebar is hidden */}
           <div className="absolute inset-x-3 top-3 flex gap-2 overflow-x-auto lg:hidden">
@@ -739,7 +913,7 @@ export default function CommandCenter() {
           >
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-[10px] tracking-[0.2em] text-cyan-400">SITE ANALYSIS · {site.biome.toUpperCase()}</p>
+                <p className="text-[10px] tracking-[0.2em] text-cyan-400">CASE FILE · {site.biome.toUpperCase()}</p>
                 <h2 className="cc-glow mt-0.5 text-lg font-semibold text-cyan-50">{site.name}</h2>
                 <p className="font-mono text-[11px] text-slate-500">
                   <Crosshair className="mr-1 inline h-3 w-3" />
@@ -763,10 +937,13 @@ export default function CommandCenter() {
               <>
                 <div className="mt-4 rounded-lg border border-cyan-400/15 bg-slate-950/40 p-3 pb-4">
                   <div className="mb-1 flex justify-between text-[10px] tracking-wider text-slate-400">
-                    <span>{(def?.short ?? variable.label).toUpperCase()} · YEARLY ANOMALY</span>
+                    <span>
+                      {(def?.short ?? variable.label).toUpperCase()} · EACH YEAR VS. NORMAL
+                      <Info text={EXPLAIN.chart} />
+                    </span>
                   </div>
                   <SeriesChart years={years} values={cur.values} stats={cur.stats} color={VERDICT_COLOR[verdict]} />
-                  <p className="mt-3 text-[10px] text-slate-500">Dots: each year. Bright line: Sen’s trend. Dashed: 95% range of the trend.</p>
+                  <p className="mt-3 text-[10px] text-slate-500">Dots: one per year · Bright line: the trend · Dashed: how steep it could plausibly be</p>
                 </div>
 
                 <button
@@ -795,33 +972,37 @@ export default function CommandCenter() {
                       {verdict === 'noise' ? <XCircle className="h-5 w-5 shrink-0 text-slate-300" /> : <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: VERDICT_COLOR[verdict] }} />}
                       <div>
                         <p className="text-sm font-semibold text-slate-100">
-                          {verdict === 'noise' ? 'Not proven: could be year-to-year noise' : `Real trend: ${(def?.short ?? 'value').toLowerCase()} is ${verdict}`}
+                          {verdict === 'noise'
+                            ? 'Case not proven: this could just be natural ups and downs'
+                            : `Case closed: ${(def?.short ?? 'value').toLowerCase()} here is really ${verdict}`}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-400">
                           {verdict === 'noise'
-                            ? `A pattern this size would turn up by chance more than 1 time in 20 (p = ${fmtP(cur.stats.p)}).`
-                            : `A trend this strong would appear by chance less than 1 time in 20 (p = ${fmtP(cur.stats.p)}).`}
+                            ? `If nothing were really changing, a pattern like this would still turn up more than 1 time in 20 (p ${fmtP(cur.stats.p)}). Not enough evidence yet.`
+                            : `If nothing were really changing, a trend this strong would turn up less than 1 time in 20 (p ${fmtP(cur.stats.p)}). Over ${years.length} years it ${verdict === 'rising' ? 'went up' : 'went down'} by about ${fmt(Math.abs(cur.stats.totalChange ?? 0), 2)}${cur.stats.relChange != null ? ` (${Math.abs(100 * cur.stats.relChange).toFixed(0)}%)` : ''}.`}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex justify-around">
-                      <Ring value={cur.stats.p === null ? 0 : 1 - cur.stats.p} label={cur.stats.p === null ? '–' : `${Math.floor(100 * (1 - cur.stats.p))}%`} sub="1 − p value" color={VERDICT_COLOR[verdict]} />
-                      <Ring value={Math.min(1, Math.abs(cur.stats.snr ?? 0) / 2)} label={fmt(cur.stats.snr, 2)} sub="Signal / noise" color="#22d3ee" />
-                      <Ring value={years.length ? cur.stats.n / years.length : 0} label={`${cur.stats.n}`} sub="Years used" color="#34d399" />
+                      <Ring value={cur.stats.p === null ? 0 : 1 - cur.stats.p} label={cur.stats.p === null ? '–' : `${Math.floor(100 * (1 - cur.stats.p))}%`} sub="Not luck (1 − p)" color={VERDICT_COLOR[verdict]} info={EXPLAIN.p} />
+                      <Ring value={Math.min(1, Math.abs(cur.stats.snr ?? 0) / 2)} label={fmt(cur.stats.snr, 2)} sub="Trend vs. wobble" color="#22d3ee" info={EXPLAIN.snr} />
+                      <Ring value={years.length ? cur.stats.n / years.length : 0} label={`${cur.stats.n}`} sub="Years used" color="#34d399" info={EXPLAIN.years} />
                     </div>
 
                     <div className="space-y-3">
                       <Bar
-                        label="Rate of change"
+                        label="Speed of change"
+                        info={EXPLAIN.rate}
                         value={cur.stats.slopePerDecade ?? 0}
                         max={Math.max(Math.abs(cur.stats.ciLow ?? 0), Math.abs(cur.stats.ciHigh ?? 0), 1e-9)}
                         color={VERDICT_COLOR[verdict]}
-                        text={`${(cur.stats.slopePerDecade ?? 0) > 0 ? '+' : ''}${fmt(cur.stats.slopePerDecade)} ${variable.trendUnits}`}
+                        text={`${(cur.stats.slopePerDecade ?? 0) > 0 ? '+' : ''}${fmt(cur.stats.slopePerDecade)} ${perDecade(variable.trendUnits)}`}
                       />
-                      <Bar label="95% range" value={1} max={1} color="rgba(34,211,238,0.5)" text={`${fmt(cur.stats.ciLow)} to ${fmt(cur.stats.ciHigh)}`} />
+                      <Bar label="Likely range" info={EXPLAIN.range} value={1} max={1} color="rgba(34,211,238,0.5)" text={`${fmt(cur.stats.ciLow)} to ${fmt(cur.stats.ciHigh)}`} />
                       <Bar
                         label={`Total change ${years[0]}–${years.at(-1)}`}
+                        info={EXPLAIN.total}
                         value={Math.abs(cur.stats.slopePerDecade ?? 0)}
                         max={Math.max(Math.abs(cur.stats.ciLow ?? 0), Math.abs(cur.stats.ciHigh ?? 0), 1e-9)}
                         color="#34d399"
@@ -829,8 +1010,8 @@ export default function CommandCenter() {
                       />
                     </div>
                     <p className="text-[10px] leading-relaxed text-slate-500">
-                      Method: Mann-Kendall test corrected for year-to-year memory, plus Sen’s slope, on yearly averages over the region. Map cells use false-discovery-rate control (q ≤{' '}
-                      {manifest.fdrAlpha}).
+                      For teachers: Mann-Kendall trend test with a correction for year-to-year memory (autocorrelation), Sen’s slope with a 95% interval, on regional yearly averages. The full map
+                      controls false discoveries across cells (FDR q ≤ {manifest.fdrAlpha}).
                     </p>
                   </div>
                 )}
