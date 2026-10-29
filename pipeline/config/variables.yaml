@@ -223,7 +223,7 @@ variables:
     product: NASA_SSH_REF_SIMPLE_GRID_V1
     version: "1"
     daac: POCLOUD
-    var: SLA
+    var: ssha
     units: m
     expected_granules: 1202
     note: About 5-day files; aggregate to monthly.
