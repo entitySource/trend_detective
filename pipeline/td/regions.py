@@ -15,6 +15,11 @@ BOXES: list[tuple[str, str, tuple[float, float, float, float]]] = [
     ("amz", "Amazon", (-70, -10, -50, 2)),
     ("sah", "Sahel", (-15, 10, 35, 18)),
     ("aus", "Australia", (115, -38, 153, -12)),
+    ("cvy", "California Central Valley", (-122.5, 35, -118.5, 40.5)),
+    ("mde", "Middle East", (35, 20, 60, 37)),
+    ("sea", "Southeast Asia (Strait of Malacca)", (95, -6, 120, 6)),
+    ("grl", "Greenland", (-55, 60, -20, 83)),
+    ("del", "Delhi region", (76.5, 28, 77.8, 29)),
 ]
 
 

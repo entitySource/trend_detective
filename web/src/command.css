@@ -41,3 +41,35 @@
 @media (prefers-reduced-motion: reduce) {
   .cc-scan, .cc-slide, .cc-rise { animation: none; }
 }
+
+/* Chart pieces that follow the theme. */
+.cc-future { fill: rgba(2, 6, 13, 0.45); }
+.cc-chart-label { fill: #e0f2fe; }
+
+/* "Daylight" theme: unlayered overrides of the night palette, so they win over Tailwind utilities. */
+[data-theme='day'].cc-grid {
+  background-color: #eef3f8;
+  background-image:
+    radial-gradient(ellipse at 50% 40%, rgba(8, 145, 178, 0.08), transparent 60%),
+    linear-gradient(rgba(14, 116, 144, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 116, 144, 0.08) 1px, transparent 1px);
+  color: #0f172a;
+}
+[data-theme='day'] .cc-glass {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(14, 116, 144, 0.3);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+}
+[data-theme='day'] .cc-glow { text-shadow: none; }
+[data-theme='day'] .cc-future { fill: rgba(241, 245, 249, 0.7); }
+[data-theme='day'] .cc-chart-label { fill: #0f172a; }
+[data-theme='day'] :is(.text-slate-100, .text-slate-200, .text-slate-300, .text-cyan-50, .text-cyan-100) { color: #0f172a; }
+[data-theme='day'] :is(.text-slate-400, .text-slate-500) { color: #475569; }
+[data-theme='day'] .text-slate-600 { color: #94a3b8; }
+[data-theme='day'] :is(.text-cyan-200, .text-cyan-300, .text-cyan-400) { color: #0e7490; }
+[data-theme='day'] :is(.text-emerald-200, .text-emerald-300, .text-emerald-400) { color: #047857; }
+[data-theme='day'] :is(.text-amber-200, .text-amber-300) { color: #b45309; }
+[data-theme='day'] :is(.bg-slate-950\/30, .bg-slate-950\/40, .bg-slate-950\/50, .bg-slate-900\/50, .bg-slate-900\/70) { background-color: rgba(241, 245, 249, 0.85); }
+[data-theme='day'] .bg-slate-800\/80 { background-color: #e2e8f0; }
+[data-theme='day'] :is(.border-slate-700, .border-slate-700\/60, .border-slate-700\/70) { border-color: rgba(100, 116, 139, 0.35); }
+[data-theme='day'] select option { background: #fff; color: #0f172a; }

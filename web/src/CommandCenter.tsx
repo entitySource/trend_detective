@@ -1,9 +1,10 @@
-// Trend Detective command center: a globe of investigation sites, a trend-test panel, a guided
-// "what / where" question flow and watchable demo cases. Reads the same contract files as the map view
-// (manifest, regions/{var}.json, validation.json), so it shows real data as soon as the pipeline exports it.
+// Trend Detective command center: a holographic globe of investigation sites, a case-file panel with a
+// trend test, two-site comparison, a timeline slider that re-tests on fewer years, a guided "what / where"
+// question flow and watchable demo cases. Reads the same contract files as the map view (manifest,
+// regions/{var}.json, validation.json), so it shows real data as soon as the pipeline exports it.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { geoDistance, geoGraticule10, geoOrthographic, geoPath, type GeoPermissibleObjects } from 'd3-geo'
-import { feature } from 'topojson-client'
+import { geoDistance, geoEquirectangular, geoGraticule10, geoInterpolate, geoOrthographic, geoPath, type GeoPermissibleObjects } from 'd3-geo'
+import { feature, mesh } from 'topojson-client'
 import type { GeometryCollection, Topology } from 'topojson-specification'
 import countries110m from 'world-atlas/countries-110m.json'
 import {
@@ -16,110 +17,65 @@ import {
   Crosshair,
   Database,
   Filter,
+  GitCompare,
   Globe2,
   HelpCircle,
+  Link2,
   Loader2,
   Map as MapIcon,
+  Minus,
+  Moon,
   Pause,
   Play,
+  Plus,
   Radar,
   Search,
   Sparkles,
+  Sun,
   X,
   XCircle,
 } from 'lucide-react'
 import { dataUrl, type Manifest, type TrendStats } from './contract'
+import { DEFINITIONS, DEMOS, INTERESTS, LEADS, PLACES, SITES, type Biome, type Site } from './command/content'
+import { quickTrend } from './command/trend'
 
-// ---------- Static knowledge: sites, plain-language definitions, research leads ----------
-
-type Biome = 'megacity air' | 'farmland' | 'rainforest' | 'desert edge' | 'polar' | 'dryland' | 'temperate' | 'planet'
-
-// bbox = [west, south, east, north], the averaging box in pipeline/td/regions.py.
-type Site = { id: string; name: string; lat: number; lon: number; biome: Biome; blurb: string; bbox: [number, number, number, number] }
-
-// Marker positions: the centres of the analysis boxes.
-const SITES: Site[] = [
-  { id: 'glb', name: 'Whole world', lat: 0, lon: 0, biome: 'planet', blurb: 'Every grid cell, area-weighted. Global trends are rare but powerful.', bbox: [-180, -90, 180, 90] },
-  { id: 'arc', name: 'Arctic', lat: 78, lon: 0, biome: 'polar', blurb: 'Warming about four times faster than the planet as a whole.', bbox: [-180, 66, 180, 90] },
-  { id: 'eas', name: 'Eastern China', lat: 34, lon: 116, biome: 'megacity air', blurb: 'Hundreds of millions of people, heavy industry and clean-air laws since 2013.', bbox: [110, 28, 122, 40] },
-  { id: 'igp', name: 'Indo-Gangetic Plain', lat: 26, lon: 81.5, biome: 'farmland', blurb: 'One of the most farmed, irrigated and polluted plains on Earth.', bbox: [75, 22, 88, 30] },
-  { id: 'eur', name: 'Europe', lat: 50, lon: 10, biome: 'temperate', blurb: 'Decades of emission controls; heatwaves becoming more common.', bbox: [-10, 40, 30, 60] },
-  { id: 'amz', name: 'Amazon', lat: -4, lon: -60, biome: 'rainforest', blurb: 'The largest rainforest, under drought and deforestation pressure.', bbox: [-70, -10, -50, 2] },
-  { id: 'sah', name: 'Sahel', lat: 14, lon: 10, biome: 'desert edge', blurb: 'The strip south of the Sahara where rainfall swings decade to decade.', bbox: [-15, 10, 35, 18] },
-  { id: 'aus', name: 'Australia', lat: -25, lon: 134, biome: 'dryland', blurb: 'A dry continent with record bushfires and droughts.', bbox: [115, -38, 153, -12] },
-]
-
-const DEFINITIONS: Record<string, { short: string; plain: string; source: string }> = {
-  t2m: { short: 'Air temperature', plain: 'The temperature of the air 2 m above the ground, the temperature you would feel.', source: 'NASA MERRA-2 reanalysis' },
-  tws: { short: 'Water storage', plain: 'All the water stored on and under land: rivers, soil, groundwater and ice, weighed from space by tiny changes in Earth’s gravity.', source: 'NASA/DLR GRACE & GRACE-FO' },
-  precip: { short: 'Precipitation', plain: 'How much rain and snow falls, in millimetres per day, combined from a fleet of satellites.', source: 'NASA GPM IMERG' },
-  ndvi: { short: 'Greenness', plain: 'How green and leafy the land is: near 0 is bare ground, near 1 is dense forest.', source: 'NASA MODIS Terra' },
-  aod: { short: 'Haze', plain: 'How much sunlight dust, smoke and pollution particles block. 0 is crystal-clear air; above 0.5 is very hazy.', source: 'NASA MERRA-2 aerosols' },
-}
-
-const INTERESTS = [
-  { id: 'heat', label: 'Heat', vars: ['t2m'] },
-  { id: 'water', label: 'Water', vars: ['tws', 'precip'] },
-  { id: 'air', label: 'Air quality', vars: ['aod'] },
-  { id: 'plants', label: 'Plants', vars: ['ndvi'] },
-] as const
-
-const PLACES: { id: Biome; label: string }[] = [
-  { id: 'megacity air', label: 'Above a big city' },
-  { id: 'farmland', label: 'Farmland' },
-  { id: 'rainforest', label: 'Rainforest' },
-  { id: 'desert edge', label: 'Desert edge' },
-  { id: 'polar', label: 'Polar' },
-  { id: 'dryland', label: 'Dry continent' },
-  { id: 'temperate', label: 'Temperate' },
-]
-
-// Leads drawn from published research: why a variable might show a trend in a place.
-const LEADS: { varId: string; siteId: string; why: string }[] = [
-  { varId: 'aod', siteId: 'eas', why: 'China’s 2013 clean-air plan cut particle pollution sharply (Zhang et al. 2019, PNAS).' },
-  { varId: 'aod', siteId: 'igp', why: 'Crop-residue burning and growing emissions raised haze over northern India (Dey & Di Girolamo 2011).' },
-  { varId: 'aod', siteId: 'eur', why: 'European emission controls have cleaned the air since the 1990s.' },
-  { varId: 'tws', siteId: 'igp', why: 'Groundwater pumping for irrigation is draining aquifers (Rodell et al. 2009, 2018, Nature).' },
-  { varId: 'ndvi', siteId: 'igp', why: 'India is greening, mostly from intensive farming (Chen et al. 2019, Nature Sustainability).' },
-  { varId: 'ndvi', siteId: 'eas', why: 'China’s tree planting drives a large share of global greening (Chen et al. 2019).' },
-  { varId: 't2m', siteId: 'arc', why: 'Arctic amplification: the Arctic warms several times faster than the globe (Rantanen et al. 2022).' },
-  { varId: 't2m', siteId: 'eur', why: 'Europe is a heatwave hot-spot, warming faster than other mid-latitudes (Rousi et al. 2022).' },
-  { varId: 'precip', siteId: 'sah', why: 'Sahel rainfall has partly recovered since the 1980s droughts (Biasutti 2019).' },
-  { varId: 'ndvi', siteId: 'sah', why: 'The Sahel “re-greening” follows the rainfall recovery.' },
-  { varId: 'precip', siteId: 'amz', why: 'Longer dry seasons and record droughts in 2005, 2010, 2015 and 2023.' },
-  { varId: 'tws', siteId: 'aus', why: 'The Millennium Drought and later floods make Australian water storage swing.' },
-  { varId: 't2m', siteId: 'glb', why: 'The global warming signal: about 0.2–0.3 °C per decade since 2000.' },
-]
-
-const DEMOS = [
-  {
-    title: 'The haze mystery',
-    blurb: 'Same variable, opposite trends, 3,000 km apart.',
-    steps: [
-      { varId: 'aod', siteId: 'eas', caption: 'Case 1 · Haze over Eastern China. Clean-air laws arrived in 2013. Has the air cleared?' },
-      { varId: 'aod', siteId: 'igp', caption: 'Case 1 · Now the Indo-Gangetic Plain next door. Same satellites, same years: is the trend the same?' },
-    ],
-  },
-  {
-    title: 'The vanishing water',
-    blurb: 'Fields are greening while the water underneath disappears.',
-    steps: [
-      { varId: 'tws', siteId: 'igp', caption: 'Case 2 · GRACE weighs the water under northern India. Is it running out?' },
-      { varId: 'ndvi', siteId: 'igp', caption: 'Case 2 · Meanwhile, the same fields from above. Greener or browner?' },
-    ],
-  },
-]
-
-// ---------- Data ----------
+// ---------- Data and helpers ----------
 
 type RegionSeries = { values: number[]; stats: TrendStats }
 type RegionsFile = { variable: string; years: number[]; regions: { id: string; seasons: Record<string, RegionSeries> }[] }
 type Check = { id: string; name: string; status: 'pass' | 'fail' | 'pending'; note?: string }
+type Theme = 'night' | 'day'
 
 const topo = countries110m as unknown as Topology<{ countries: GeometryCollection; land: GeometryCollection }>
-const LAND = feature(topo, topo.objects.land) as GeoPermissibleObjects
-const COUNTRIES = feature(topo, topo.objects.countries) as GeoPermissibleObjects
+const LAND = feature(topo, topo.objects.land)
+const COAST = mesh(topo, topo.objects.land) as GeoPermissibleObjects
 const GRATICULE = geoGraticule10()
+
+// Point cloud for the hologram: a roughly even grid of dots over land (about 2° apart). Land is painted
+// once onto a 1-pixel-per-degree canvas and sampled, which is thousands of times faster than geoContains.
+let landDots: [number, number][] | null = null
+function getLandDots(): [number, number][] {
+  if (landDots) return landDots
+  const c = document.createElement('canvas')
+  c.width = 360
+  c.height = 180
+  const ctx = c.getContext('2d', { willReadFrequently: true })!
+  const flat = geoEquirectangular().scale(180 / Math.PI).translate([180, 90])
+  ctx.beginPath()
+  geoPath(flat, ctx)(LAND)
+  ctx.fill()
+  const px = ctx.getImageData(0, 0, 360, 180).data
+  const out: [number, number][] = []
+  for (let lat = -84; lat <= 84; lat += 2) {
+    const step = 2 / Math.max(0.2, Math.cos((lat * Math.PI) / 180))
+    for (let lon = -180; lon < 180; lon += step) {
+      const i = Math.min(179, Math.floor(90 - lat)) * 360 + Math.min(359, Math.floor(lon + 180))
+      if (px[i * 4 + 3] > 127) out.push([lon, lat])
+    }
+  }
+  landDots = out
+  return out
+}
 
 // Box outline as a densified line, so its edges follow parallels on the globe instead of great circles.
 function boxOutline([w, s, e, n]: Site['bbox']): GeoPermissibleObjects {
@@ -136,19 +92,91 @@ function boxOutline([w, s, e, n]: Site['bbox']): GeoPermissibleObjects {
 }
 
 type Verdict = 'rising' | 'falling' | 'noise' | 'unknown'
-const verdictOf = (s?: TrendStats): Verdict => {
+type Stats = { slopePerDecade: number | null; p: number | null; n: number; totalChange: number | null; snr: number | null; ciLow: number | null; ciHigh: number | null; relChange?: number | null }
+const verdictOf = (s?: Pick<Stats, 'p' | 'slopePerDecade'>): Verdict => {
   if (!s || s.p === null || s.slopePerDecade === null) return 'unknown'
   if (s.p >= 0.05) return 'noise'
   return s.slopePerDecade > 0 ? 'rising' : 'falling'
 }
 const VERDICT_COLOR: Record<Verdict, string> = { rising: '#fb7185', falling: '#38bdf8', noise: '#94a3b8', unknown: '#475569' }
 const VERDICT_TEXT: Record<Verdict, string> = { rising: 'Rising', falling: 'Falling', noise: 'Not proven', unknown: 'No data' }
+const COMPARE_COLOR = '#fbbf24'
 
 const fmt = (x: number | null | undefined, d = 3) => (x === null || x === undefined || !Number.isFinite(x) ? '–' : Math.abs(x) >= 100 ? x.toFixed(0) : x.toPrecision(d))
 // Returns the comparison too, so text reads "p = 0.064" or "p < 0.001".
 const fmtP = (p: number | null | undefined) => (p === null || p === undefined ? '= –' : p < 0.001 ? '< 0.001' : `= ${p.toFixed(3)}`)
+const fmtLat = (lat: number) => `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}`
+const fmtLon = (lon: number) => `${Math.abs(lon).toFixed(1)}°${lon >= 0 ? 'E' : 'W'}`
+// Units like "AOD/decade" read better spelled out.
+const perDecade = (u: string) => u.replace(/\s*\/\s*decade$/, ' every 10 years').replace(/ per decade$/, ' every 10 years')
+
+// Each step of the real method, in plain words (technical name in brackets for the curious).
+const STAGES = [
+  'Collecting 23 years of satellite measurements',
+  'Taking out the normal summer–winter swing (seasonal anomalies)',
+  'Averaging over the whole region, one value per year',
+  'Asking: could a pattern like this happen by luck? (Mann-Kendall test)',
+  'Measuring how fast it is changing (Sen’s slope)',
+]
+
+const DETECTIVE_STEPS = [
+  { n: 1, title: 'Pick a clue', text: 'Choose something to measure: heat, water, haze or plants.' },
+  { n: 2, title: 'Pick a place', text: 'Click a glowing site. Most trends are regional, not global.' },
+  { n: 3, title: 'Look at the evidence', text: 'See one dot per year from 2003 to 2025.' },
+  { n: 4, title: 'Test it', text: 'Is the change real, or just natural ups and downs?' },
+]
+
+const EXPLAIN = {
+  chart: 'Each dot is one year: how far that year was above (up) or below (down) this place’s usual level. The bright line is the trend; the dashed lines show how uncertain its steepness is.',
+  p: 'The p-value is the chance of seeing a trend this strong if nothing were really changing. Below 0.05 (1 in 20) scientists call it “significant”. The ring shows 1 − p: fuller means less likely to be luck.',
+  snr: 'Trend vs. wobble: how big the change is compared with the normal year-to-year ups and downs. Above 1, the trend stands out from the noise.',
+  years: 'How many years had enough data to count. Years with too many missing months are left out.',
+  rate: 'How much the value changes every 10 years, if the trend carries on at the same speed.',
+  range: 'We are 95% sure the true speed lies between these two numbers. If the range crosses zero, we can’t even be sure of the direction.',
+  total: 'Speed × time: roughly how much the value changed across the years tested.',
+  timeline: 'Pretend it is an earlier year and re-run the test on only the data up to then. Short records rarely prove anything; watch the verdict change as evidence piles up.',
+  compare: 'Put two places side by side. Same variable, same years, same test: do they move the same way?',
+}
+
+// ---------- URL state: #/?v=aod&s=eas&c=igp&y=2015&t=day ----------
+
+type UrlState = { v?: string; s?: string; c?: string; y?: number; t?: Theme }
+function readUrl(): UrlState {
+  const q = new URLSearchParams(window.location.hash.replace(/^#\/?\??/, ''))
+  const y = Number(q.get('y'))
+  return {
+    v: q.get('v') ?? undefined,
+    s: q.get('s') ?? undefined,
+    c: q.get('c') ?? undefined,
+    y: Number.isFinite(y) && y > 0 ? y : undefined,
+    t: q.get('t') === 'day' ? 'day' : q.get('t') === 'night' ? 'night' : undefined,
+  }
+}
 
 // ---------- Small visual pieces ----------
+
+function Info({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setOpen(false)}
+        aria-label="What does this mean?"
+        aria-expanded={open}
+        className="ml-1 align-middle text-cyan-400/70 hover:text-cyan-200"
+      >
+        <HelpCircle className="h-3 w-3" />
+      </button>
+      {open && (
+        <span role="tooltip" className="cc-glass absolute top-5 right-0 z-30 w-60 rounded-lg p-2.5 text-left text-[11px] leading-relaxed font-normal tracking-normal text-slate-200 normal-case">
+          {text}
+        </span>
+      )}
+    </span>
+  )
+}
 
 function Ring({ value, label, sub, color, info }: { value: number; label: string; sub: string; color: string; info: string }) {
   const r = 30
@@ -174,7 +202,7 @@ function Ring({ value, label, sub, color, info }: { value: number; label: string
         </svg>
         <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-100">{label}</span>
       </div>
-      <div className="text-[10px] tracking-widest text-slate-400 uppercase">
+      <div className="text-center text-[10px] tracking-widest text-slate-400 uppercase">
         {sub}
         <Info text={info} />
       </div>
@@ -200,30 +228,31 @@ function Bar({ label, value, max, color, text, info }: { label: string; value: n
   )
 }
 
-function SeriesChart({ years, values, stats, color }: { years: number[]; values: number[]; stats: TrendStats; color: string }) {
+type ChartSeries = { values: number[]; stats: Stats; color: string; label: string }
+
+function SeriesChart({ years, series, upto }: { years: number[]; series: ChartSeries[]; upto: number }) {
   const W = 320
   const H = 120
   const pad = 6
-  const lo = Math.min(...values)
-  const hi = Math.max(...values)
+  const [hover, setHover] = useState<number | null>(null)
+  const all = series.flatMap((s) => s.values).filter(Number.isFinite)
+  const lo = Math.min(...all)
+  const hi = Math.max(...all)
   const span = hi - lo || 1
+  const lastI = years.indexOf(upto) >= 0 ? years.indexOf(upto) : years.length - 1
   const x = (i: number) => pad + (i / (years.length - 1)) * (W - 2 * pad)
   const y = (v: number) => H - pad - ((v - lo) / span) * (H - 2 * pad)
-  const pts = values.map((v, i) => `${x(i)},${y(v)}`).join(' ')
-  // Sen's line passes through the median point (median year, median value).
-  const sorted = [...values].sort((a, b) => a - b)
-  const midV = sorted[Math.floor(sorted.length / 2)]
-  const midI = (years.length - 1) / 2
-  const line = (perDecade: number | null) => {
-    if (perDecade === null) return null
-    const s = perDecade / 10
-    return `${x(0)},${y(midV - s * midI)} ${x(years.length - 1)},${y(midV + s * midI)}`
-  }
-  const lowLine = line(stats.ciLow)
-  const highLine = line(stats.ciHigh)
-  const senLine = line(stats.slopePerDecade)
-  const [hover, setHover] = useState<number | null>(null)
   const zeroY = lo < 0 && hi > 0 ? y(0) : null
+  // Sen's line passes through the median point of the years tested.
+  const trendLine = (values: number[], perDecade: number | null) => {
+    if (perDecade === null) return null
+    const used = values.slice(0, lastI + 1)
+    const sorted = [...used].sort((a, b) => a - b)
+    const midV = sorted[Math.floor(sorted.length / 2)]
+    const midI = lastI / 2
+    const s = perDecade / 10
+    return `${x(0)},${y(midV - s * midI)} ${x(lastI)},${y(midV + s * (lastI - midI))}`
+  }
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -240,6 +269,7 @@ function SeriesChart({ years, values, stats, color }: { years: number[]; values:
       {[0.25, 0.5, 0.75].map((f) => (
         <line key={f} x1={pad} x2={W - pad} y1={H * f} y2={H * f} stroke="rgba(34,211,238,0.08)" />
       ))}
+      {lastI < years.length - 1 && <rect x={x(lastI) + 3} y={0} width={W - pad - x(lastI) - 3} height={H} className="cc-future" />}
       {zeroY !== null && (
         <>
           <line x1={pad} x2={W - pad} y1={zeroY} y2={zeroY} stroke="rgba(148,163,184,0.35)" strokeDasharray="1 3" />
@@ -254,23 +284,31 @@ function SeriesChart({ years, values, stats, color }: { years: number[]; values:
       <text x={pad} y={H - 1} fill="#64748b" fontSize="8">
         ▼ below usual
       </text>
+      {series.map((s, k) => {
+        const lowL = k === 0 ? trendLine(s.values, s.stats.ciLow) : null
+        const highL = k === 0 ? trendLine(s.values, s.stats.ciHigh) : null
+        const senL = trendLine(s.values, s.stats.slopePerDecade)
+        const dotColor = k === 0 ? '#22d3ee' : COMPARE_COLOR
+        return (
+          <g key={s.label}>
+            {lowL && <polyline points={lowL} fill="none" stroke={s.color} strokeOpacity="0.35" strokeDasharray="3 3" />}
+            {highL && <polyline points={highL} fill="none" stroke={s.color} strokeOpacity="0.35" strokeDasharray="3 3" />}
+            <polyline points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(' ')} fill="none" stroke={dotColor} strokeWidth="1.3" strokeOpacity="0.6" />
+            {s.values.map((v, i) => (
+              <circle key={i} cx={x(i)} cy={y(v)} r="2" fill={dotColor} opacity={i > lastI ? 0.3 : 1} />
+            ))}
+            {senL && <polyline points={senL} fill="none" stroke={s.color} strokeWidth="2.5" style={{ filter: `drop-shadow(0 0 4px ${s.color})` }} />}
+          </g>
+        )
+      })}
       {hover !== null && (
         <>
-          <line x1={x(hover)} x2={x(hover)} y1={0} y2={H} stroke="rgba(165,243,252,0.35)" />
-          <circle cx={x(hover)} cy={y(values[hover])} r="4" fill="none" stroke="#e0f2fe" />
-          <text x={Math.min(W - 70, Math.max(pad, x(hover) + 6))} y={Math.max(20, y(values[hover]) - 8)} fill="#e0f2fe" fontSize="10" fontFamily="ui-monospace, monospace">
-            {years[hover]}: {values[hover] > 0 ? '+' : ''}
-            {fmt(values[hover], 2)}
+          <line x1={x(hover)} x2={x(hover)} y1={0} y2={H} stroke="rgba(34,211,238,0.4)" />
+          <text x={Math.min(W - 92, Math.max(pad, x(hover) + 6))} y={20} className="cc-chart-label" fontSize="10" fontFamily="ui-monospace, monospace">
+            {years[hover]}: {series.map((s) => `${s.values[hover] > 0 ? '+' : ''}${fmt(s.values[hover], 2)}`).join(' / ')}
           </text>
         </>
       )}
-      {lowLine && <polyline points={lowLine} fill="none" stroke={color} strokeOpacity="0.35" strokeDasharray="3 3" />}
-      {highLine && <polyline points={highLine} fill="none" stroke={color} strokeOpacity="0.35" strokeDasharray="3 3" />}
-      <polyline points={pts} fill="none" stroke="#67e8f9" strokeWidth="1.5" strokeOpacity="0.85" />
-      {values.map((v, i) => (
-        <circle key={i} cx={x(i)} cy={y(v)} r="2" fill="#a5f3fc" />
-      ))}
-      {senLine && <polyline points={senLine} fill="none" stroke={color} strokeWidth="2.5" style={{ filter: `drop-shadow(0 0 4px ${color})` }} />}
       <text x={pad} y={H + 10} fill="#64748b" fontSize="9">
         {years[0]}
       </text>
@@ -283,31 +321,50 @@ function SeriesChart({ years, values, stats, color }: { years: number[]; values:
 
 // ---------- Globe ----------
 
+const GLOBE_COLORS: Record<Theme, { ocean: [string, string]; glow: string; dot: string; coast: string; grid: string; rim: string; label: string }> = {
+  night: { ocean: ['#0b2a3d', '#030b14'], glow: 'rgba(34,211,238,0.28)', dot: 'rgba(52,211,153,0.85)', coast: 'rgba(34,211,238,0.22)', grid: 'rgba(34,211,238,0.10)', rim: 'rgba(34,211,238,0.6)', label: '#e0f2fe' },
+  day: { ocean: ['#f8fafc', '#cbd5e1'], glow: 'rgba(8,145,178,0.22)', dot: 'rgba(14,116,144,0.8)', coast: 'rgba(14,116,144,0.3)', grid: 'rgba(14,116,144,0.14)', rim: 'rgba(14,116,144,0.6)', label: '#0f172a' },
+}
+
 type GlobeProps = {
   sites: Site[]
   colors: Record<string, string>
   selected: string | null
+  compare: string | null
   focus: { lat: number; lon: number; t: number } | null
   spinning: boolean
+  theme: Theme
   onPick: (id: string) => void
+  onHover: (h: { id: string; x: number; y: number } | null) => void
 }
 
-function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps) {
+function Globe({ sites, colors, selected, compare, focus, spinning, theme, onPick, onHover }: GlobeProps) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const rot = useRef<[number, number]>([-40, -20])
+  const zoom = useRef(1)
   const drag = useRef<{ x: number; y: number; r: [number, number]; moved: boolean } | null>(null)
   const anim = useRef<{ from: [number, number]; to: [number, number]; t0: number } | null>(null)
   const size = useRef({ w: 600, h: 600 })
   const hover = useRef<string | null>(null)
+  const [pointer, setPointer] = useState<[number, number] | null>(null)
   // Latest props for the animation loop, which runs once and must not restart on every change.
-  const live = useRef({ sites, colors, selected, spinning })
+  const live = useRef({ sites, colors, selected, compare, spinning, theme })
   useEffect(() => {
-    live.current = { sites, colors, selected, spinning }
-  }, [sites, colors, selected, spinning])
+    live.current = { sites, colors, selected, compare, spinning, theme }
+  }, [sites, colors, selected, compare, spinning, theme])
 
   useEffect(() => {
     if (focus) anim.current = { from: [...rot.current], to: [-focus.lon, -focus.lat], t0: performance.now() }
   }, [focus])
+
+  const projection = useCallback(() => {
+    const { w, h } = size.current
+    return geoOrthographic()
+      .rotate(rot.current)
+      .translate([w / 2, h / 2])
+      .scale(Math.min(w, h) * 0.42 * zoom.current)
+      .clipAngle(90)
+  }, [])
 
   useEffect(() => {
     const el = canvas.current!
@@ -324,8 +381,49 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
     let raf = 0
     let last = performance.now()
 
+    // Target reticle: crosshair lines across the view, corner brackets, name and coordinates.
+    const reticle = (x: number, y: number, col: string, label: string, sub: string, now: number) => {
+      const { w, h } = size.current
+      const C = GLOBE_COLORS[live.current.theme]
+      ctx.strokeStyle = col
+      ctx.globalAlpha = 0.25
+      ctx.lineWidth = 1
+      ctx.setLineDash([2, 4])
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(w, y)
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, h)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.globalAlpha = 1
+      const r = 14 + (reduced ? 0 : Math.sin(now / 300) * 1.5)
+      const k = 6
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      for (const [sx, sy] of [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ]) {
+        ctx.moveTo(x + sx * r, y + sy * (r - k))
+        ctx.lineTo(x + sx * r, y + sy * r)
+        ctx.lineTo(x + sx * (r - k), y + sy * r)
+      }
+      ctx.stroke()
+      ctx.font = '600 11px ui-monospace, monospace'
+      ctx.fillStyle = C.label
+      ctx.fillText(label, x + r + 6, y - 2)
+      ctx.font = '10px ui-monospace, monospace'
+      ctx.globalAlpha = 0.7
+      ctx.fillText(sub, x + r + 6, y + 11)
+      ctx.globalAlpha = 1
+    }
+
     const frame = (now: number) => {
-      const { sites, colors, selected, spinning } = live.current
+      const { sites, colors, selected, compare, spinning, theme } = live.current
+      const C = GLOBE_COLORS[theme]
       const dt = Math.min(64, now - last)
       last = now
       if (anim.current) {
@@ -340,22 +438,24 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
       }
 
       const { w, h } = size.current
-      const r = Math.min(w, h) * 0.42
-      const proj = geoOrthographic().rotate(rot.current).translate([w / 2, h / 2]).scale(r).clipAngle(90)
+      const proj = projection()
+      const r = proj.scale()
       const path = geoPath(proj, ctx)
+      const cx = w / 2
+      const cy = h / 2
       ctx.clearRect(0, 0, w, h)
 
-      // Atmosphere glow and ocean.
-      const glow = ctx.createRadialGradient(w / 2, h / 2, r * 0.9, w / 2, h / 2, r * 1.22)
-      glow.addColorStop(0, 'rgba(34,211,238,0.28)')
-      glow.addColorStop(1, 'rgba(34,211,238,0)')
+      // Atmosphere glow, then the ocean sphere.
+      const glow = ctx.createRadialGradient(cx, cy, r * 0.92, cx, cy, r * 1.25)
+      glow.addColorStop(0, C.glow)
+      glow.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = glow
       ctx.beginPath()
-      ctx.arc(w / 2, h / 2, r * 1.22, 0, 2 * Math.PI)
+      ctx.arc(cx, cy, r * 1.25, 0, 2 * Math.PI)
       ctx.fill()
-      const ocean = ctx.createRadialGradient(w / 2 - r * 0.35, h / 2 - r * 0.35, r * 0.1, w / 2, h / 2, r)
-      ocean.addColorStop(0, '#0b2a3d')
-      ocean.addColorStop(1, '#030b14')
+      const ocean = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r)
+      ocean.addColorStop(0, C.ocean[0])
+      ocean.addColorStop(1, C.ocean[1])
       ctx.fillStyle = ocean
       ctx.beginPath()
       path({ type: 'Sphere' })
@@ -363,48 +463,82 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
 
       ctx.beginPath()
       path(GRATICULE)
-      ctx.strokeStyle = 'rgba(34,211,238,0.10)'
+      ctx.strokeStyle = C.grid
       ctx.lineWidth = 0.6
       ctx.stroke()
-
       ctx.beginPath()
-      path(LAND)
-      ctx.fillStyle = 'rgba(16,185,129,0.16)'
-      ctx.fill()
-      ctx.beginPath()
-      path(COUNTRIES)
-      ctx.strokeStyle = 'rgba(52,211,153,0.35)'
-      ctx.lineWidth = 0.5
+      path(COAST)
+      ctx.strokeStyle = C.coast
+      ctx.lineWidth = 0.7
       ctx.stroke()
+
+      // Hologram point cloud: dots fade towards the limb.
+      const centre: [number, number] = [-rot.current[0], -rot.current[1]]
+      ctx.fillStyle = C.dot
+      const dotR = Math.max(1.2, 1.6 * zoom.current)
+      for (const d of getLandDots()) {
+        const dist = geoDistance(d, centre)
+        if (dist > Math.PI / 2) continue
+        const p = proj(d)
+        if (!p) continue
+        ctx.globalAlpha = 0.25 + 0.75 * Math.cos(dist)
+        ctx.fillRect(p[0] - dotR / 2, p[1] - dotR / 2, dotR, dotR)
+      }
+      ctx.globalAlpha = 1
 
       ctx.beginPath()
       path({ type: 'Sphere' })
-      ctx.strokeStyle = 'rgba(34,211,238,0.55)'
+      ctx.strokeStyle = C.rim
       ctx.lineWidth = 1.2
       ctx.stroke()
 
-      const sel = sites.find((s) => s.id === selected && s.id !== 'glb')
-      if (sel) {
+      // Region boxes for the selected and compared sites, and the arc between them.
+      const sel = sites.find((s) => s.id === selected)
+      const cmp = sites.find((s) => s.id === compare)
+      const boxes: [Site | undefined, string][] = [
+        [sel, colors[sel?.id ?? ''] ?? '#22d3ee'],
+        [cmp, COMPARE_COLOR],
+      ]
+      for (const [s, col] of boxes) {
+        if (!s || s.id === 'glb') continue
         ctx.beginPath()
-        path(boxOutline(sel.bbox))
-        ctx.strokeStyle = colors[sel.id] ?? '#22d3ee'
+        path(boxOutline(s.bbox))
+        ctx.strokeStyle = col
         ctx.lineWidth = 1.5
         ctx.setLineDash([5, 4])
-        ctx.shadowColor = ctx.strokeStyle
+        ctx.shadowColor = col
         ctx.shadowBlur = 10
         ctx.stroke()
         ctx.setLineDash([])
         ctx.shadowBlur = 0
       }
+      if (sel && cmp && sel.id !== 'glb' && cmp.id !== 'glb') {
+        ctx.beginPath()
+        path({
+          type: 'LineString',
+          coordinates: [
+            [sel.lon, sel.lat],
+            [cmp.lon, cmp.lat],
+          ],
+        })
+        ctx.strokeStyle = COMPARE_COLOR
+        ctx.lineWidth = 2
+        ctx.setLineDash([8, 6])
+        ctx.lineDashOffset = reduced ? 0 : -now / 40
+        ctx.shadowColor = COMPARE_COLOR
+        ctx.shadowBlur = 12
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.lineDashOffset = 0
+        ctx.shadowBlur = 0
+      }
 
-      // Site markers: pulsing rings, coloured by the trend verdict.
-      const centre: [number, number] = [-rot.current[0], -rot.current[1]]
+      // Site markers: pulsing rings coloured by the verdict; reticles on selected, compared and hovered sites.
       for (const s of sites) {
         if (s.id === 'glb' || geoDistance([s.lon, s.lat], centre) > Math.PI / 2 - 0.05) continue
         const p = proj([s.lon, s.lat])
         if (!p) continue
-        const col = colors[s.id] ?? '#22d3ee'
-        const on = s.id === selected || s.id === hover.current
+        const col = s.id === compare ? COMPARE_COLOR : (colors[s.id] ?? '#22d3ee')
         const pulse = reduced ? 0.5 : (now / 1600 + s.lat * 0.01) % 1
         ctx.beginPath()
         ctx.arc(p[0], p[1], 5 + pulse * 16, 0, 2 * Math.PI)
@@ -414,19 +548,14 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
         ctx.stroke()
         ctx.globalAlpha = 1
         ctx.beginPath()
-        ctx.arc(p[0], p[1], on ? 6.5 : 4.5, 0, 2 * Math.PI)
+        ctx.arc(p[0], p[1], s.id === selected || s.id === hover.current ? 6.5 : 4.5, 0, 2 * Math.PI)
         ctx.fillStyle = col
         ctx.shadowColor = col
         ctx.shadowBlur = 14
         ctx.fill()
         ctx.shadowBlur = 0
-        if (on) {
-          ctx.strokeStyle = '#e0f2fe'
-          ctx.lineWidth = 1
-          ctx.strokeRect(p[0] - 12, p[1] - 12, 24, 24)
-          ctx.font = '600 11px ui-monospace, monospace'
-          ctx.fillStyle = '#e0f2fe'
-          ctx.fillText(s.name.toUpperCase(), p[0] + 16, p[1] + 4)
+        if (s.id === selected || s.id === compare || s.id === hover.current) {
+          reticle(p[0], p[1], col, s.name.toUpperCase(), `${fmtLat(s.lat)} ${fmtLon(s.lon)}`, now)
         }
       }
       raf = requestAnimationFrame(frame)
@@ -436,11 +565,10 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
       cancelAnimationFrame(raf)
       ro.disconnect()
     }
-  }, [])
+  }, [projection])
 
-  const siteAt = (cx: number, cy: number) => {
-    const { w, h } = size.current
-    const proj = geoOrthographic().rotate(rot.current).translate([w / 2, h / 2]).scale(Math.min(w, h) * 0.42)
+  const siteAt = (px: number, py: number) => {
+    const proj = projection()
     const centre: [number, number] = [-rot.current[0], -rot.current[1]]
     let best: string | null = null
     let bestD = 16
@@ -448,7 +576,7 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
       if (s.id === 'glb' || geoDistance([s.lon, s.lat], centre) > Math.PI / 2) continue
       const p = proj([s.lon, s.lat])
       if (!p) continue
-      const d = Math.hypot(p[0] - cx, p[1] - cy)
+      const d = Math.hypot(p[0] - px, p[1] - py)
       if (d < bestD) {
         bestD = d
         best = s.id
@@ -461,117 +589,103 @@ function Globe({ sites, colors, selected, focus, spinning, onPick }: GlobeProps)
     const b = canvas.current!.getBoundingClientRect()
     return [e.clientX - b.left, e.clientY - b.top] as const
   }
+  const setZoom = (z: number) => {
+    zoom.current = Math.max(0.7, Math.min(3, z))
+  }
 
   return (
-    <canvas
-      ref={canvas}
-      className="h-full w-full cursor-grab touch-none"
-      aria-label="Globe of investigation sites. Drag to rotate; sites are also listed in the side panel."
-      onPointerDown={(e) => {
-        drag.current = { x: e.clientX, y: e.clientY, r: [...rot.current], moved: false }
-        anim.current = null
-        canvas.current!.setPointerCapture(e.pointerId)
-      }}
-      onPointerMove={(e) => {
-        const [cx, cy] = local(e)
-        hover.current = siteAt(cx, cy)
-        canvas.current!.style.cursor = drag.current ? 'grabbing' : hover.current ? 'pointer' : 'grab'
-        if (!drag.current) return
-        const dx = e.clientX - drag.current.x
-        const dy = e.clientY - drag.current.y
-        if (Math.abs(dx) + Math.abs(dy) > 3) drag.current.moved = true
-        const k = 0.3
-        rot.current = [drag.current.r[0] + dx * k, Math.max(-80, Math.min(80, drag.current.r[1] - dy * k))]
-      }}
-      onPointerUp={(e) => {
-        const wasDrag = drag.current?.moved
-        drag.current = null
-        if (!wasDrag) {
-          const [cx, cy] = local(e)
-          const id = siteAt(cx, cy)
-          if (id) onPick(id)
-        }
-      }}
-    />
+    <div className="relative h-full w-full">
+      <canvas
+        ref={canvas}
+        className="h-full w-full cursor-grab touch-none"
+        aria-label="Globe of investigation sites. Drag to rotate, scroll or use + and − to zoom. Sites are also listed in the side panel."
+        onWheel={(e) => setZoom(zoom.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1))}
+        onPointerDown={(e) => {
+          drag.current = { x: e.clientX, y: e.clientY, r: [...rot.current], moved: false }
+          anim.current = null
+          canvas.current!.setPointerCapture(e.pointerId)
+        }}
+        onPointerMove={(e) => {
+          const [px, py] = local(e)
+          const id = drag.current ? null : siteAt(px, py)
+          if (id !== hover.current) onHover(id ? { id, x: px, y: py } : null)
+          hover.current = id
+          const ll = projection().invert?.([px, py])
+          setPointer(ll && geoDistance(ll, [-rot.current[0], -rot.current[1]]) <= Math.PI / 2 ? [ll[1], ll[0]] : null)
+          canvas.current!.style.cursor = drag.current ? 'grabbing' : id ? 'pointer' : 'grab'
+          if (!drag.current) return
+          const dx = e.clientX - drag.current.x
+          const dy = e.clientY - drag.current.y
+          if (Math.abs(dx) + Math.abs(dy) > 3) drag.current.moved = true
+          const k = 0.3 / zoom.current
+          rot.current = [drag.current.r[0] + dx * k, Math.max(-80, Math.min(80, drag.current.r[1] - dy * k))]
+        }}
+        onPointerLeave={() => {
+          hover.current = null
+          onHover(null)
+          setPointer(null)
+        }}
+        onPointerUp={(e) => {
+          const wasDrag = drag.current?.moved
+          drag.current = null
+          if (!wasDrag) {
+            const [px, py] = local(e)
+            const id = siteAt(px, py)
+            if (id) onPick(id)
+          }
+        }}
+      />
+      <div className="absolute top-1/2 right-3 flex -translate-y-1/2 flex-col gap-1">
+        <button onClick={() => setZoom(zoom.current * 1.25)} className="cc-glass rounded-md p-1.5 text-cyan-300 hover:text-cyan-100" aria-label="Zoom in">
+          <Plus className="h-4 w-4" />
+        </button>
+        <button onClick={() => setZoom(zoom.current / 1.25)} className="cc-glass rounded-md p-1.5 text-cyan-300 hover:text-cyan-100" aria-label="Zoom out">
+          <Minus className="h-4 w-4" />
+        </button>
+      </div>
+      {pointer && (
+        <div className="cc-glass pointer-events-none absolute right-3 bottom-14 rounded-md px-2 py-1 font-mono text-[10px] text-cyan-200">
+          <Crosshair className="mr-1 inline h-3 w-3" />
+          {fmtLat(pointer[0])} {fmtLon(pointer[1])}
+        </div>
+      )}
+    </div>
   )
 }
 
 // ---------- Main ----------
 
 type Stage = 'idle' | 'running' | 'done'
-// Each step of the real method, in plain words (technical name in brackets for the curious).
-const STAGES = [
-  'Collecting 23 years of satellite measurements',
-  'Taking out the normal summer–winter swing (seasonal anomalies)',
-  'Averaging over the whole region, one value per year',
-  'Asking: could a pattern like this happen by luck? (Mann-Kendall test)',
-  'Measuring how fast it is changing (Sen’s slope)',
-]
-
-// The detective's method, shown before anything is selected.
-const DETECTIVE_STEPS = [
-  { n: 1, title: 'Pick a clue', text: 'Choose something to measure: heat, water, haze or plants.' },
-  { n: 2, title: 'Pick a place', text: 'Click a glowing site. Most trends are regional, not global.' },
-  { n: 3, title: 'Look at the evidence', text: 'See one dot per year from 2003 to 2025.' },
-  { n: 4, title: 'Test it', text: 'Is the change real, or just natural ups and downs?' },
-]
-
-// One-sentence explanations for every number in the panel.
-const EXPLAIN = {
-  chart: 'Each dot is one year: how far that year was above (up) or below (down) this place’s usual level. The bright line is the trend; the dashed lines show how uncertain its steepness is.',
-  p: 'The p-value is the chance of seeing a trend this strong if nothing were really changing. Below 0.05 (1 in 20) scientists call it “significant”. The ring shows 1 − p: fuller means less likely to be luck.',
-  snr: 'Trend vs. wobble: how big the 23-year change is compared with the normal year-to-year ups and downs. Above 1, the trend stands out from the noise.',
-  years: 'How many years had enough data to count. Years with too many missing months are left out.',
-  rate: 'How much the value changes every 10 years, if the trend carries on at the same speed.',
-  range: 'We are 95% sure the true speed lies between these two numbers. If the range crosses zero, we can’t even be sure of the direction.',
-  total: 'Speed × time: roughly how much the value changed across the whole record.',
-}
-
-function Info({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <span className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        onBlur={() => setOpen(false)}
-        aria-label="What does this mean?"
-        aria-expanded={open}
-        className="ml-1 align-middle text-cyan-400/70 hover:text-cyan-200"
-      >
-        <HelpCircle className="h-3 w-3" />
-      </button>
-      {open && (
-        <span role="tooltip" className="cc-glass absolute top-5 right-0 z-30 w-60 rounded-lg p-2.5 text-left text-[11px] leading-relaxed font-normal tracking-normal text-slate-200 normal-case">
-          {text}
-        </span>
-      )}
-    </span>
-  )
-}
-
-// Units like "AOD/decade" read better spelled out.
-const perDecade = (u: string) => u.replace(/\s*\/\s*decade$/, ' every 10 years').replace(/ per decade$/, ' every 10 years')
 
 export default function CommandCenter() {
+  const initial = useMemo(() => readUrl(), [])
   const [manifest, setManifest] = useState<Manifest | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [regions, setRegions] = useState<Record<string, RegionsFile>>({})
   const [checks, setChecks] = useState<Check[]>([])
-  const [varId, setVarId] = useState('aod')
-  const [siteId, setSiteId] = useState<string | null>(null)
-  const [focus, setFocus] = useState<{ lat: number; lon: number; t: number } | null>(null)
+  const [varId, setVarId] = useState(initial.v ?? 'aod')
+  const [siteId, setSiteId] = useState<string | null>(SITES.some((s) => s.id === initial.s) ? initial.s! : null)
+  const [compareId, setCompareId] = useState<string | null>(SITES.some((s) => s.id === initial.c) ? initial.c! : null)
+  const [upto, setUpto] = useState<number | null>(initial.y ?? null)
+  const [theme, setTheme] = useState<Theme>(initial.t ?? 'night')
+  const [focus, setFocus] = useState<{ lat: number; lon: number; t: number } | null>(() => {
+    const s = SITES.find((x) => x.id === initial.s)
+    return s && s.id !== 'glb' ? { lat: s.lat, lon: s.lon, t: 0 } : null
+  })
+  const [hoverCard, setHoverCard] = useState<{ id: string; x: number; y: number } | null>(null)
   const [query, setQuery] = useState('')
   const [biome, setBiome] = useState<Biome | 'all'>('all')
-  const [onlySig, setOnlySig] = useState(false)
-  const [spinning, setSpinning] = useState(true)
-  const [stage, setStage] = useState<Stage>('idle')
-  const [step, setStep] = useState(0)
+  const [verdictFilter, setVerdictFilter] = useState<Verdict | 'all'>('all')
+  const [spinning, setSpinning] = useState(!initial.s)
+  // A shared link opens straight on the verdict.
+  const [stage, setStage] = useState<Stage>(initial.s ? 'done' : 'idle')
+  const [step, setStep] = useState(initial.s ? STAGES.length : 0)
   const [now, setNow] = useState(() => new Date())
   const [guide, setGuide] = useState(false)
   const [interest, setInterest] = useState<(typeof INTERESTS)[number]['id'] | null>(null)
   const [place, setPlace] = useState<Biome | null>(null)
   const [demo, setDemo] = useState<{ i: number; step: number } | null>(null)
+  const [copied, setCopied] = useState(false)
   const timers = useRef<number[]>([])
 
   useEffect(() => {
@@ -587,7 +701,7 @@ export default function CommandCenter() {
       })
       .then(async (m) => {
         setManifest(m)
-        if (!m.variables.some((v) => v.id === 'aod')) setVarId(m.variables[0].id)
+        setVarId((v) => (m.variables.some((x) => x.id === v) ? v : m.variables[0].id))
         const files = await Promise.all(m.variables.map((v) => fetch(dataUrl(v.regions)).then((r) => r.json() as Promise<RegionsFile>)))
         setRegions(Object.fromEntries(files.map((f) => [f.variable, f])))
         const val = await fetch(dataUrl(m.files.validation)).then((r) => r.json())
@@ -596,17 +710,62 @@ export default function CommandCenter() {
       .catch((e: Error) => setError(e.message))
   }, [])
 
+  // Keep the shareable link in the address bar up to date (replaceState: no history spam, no hashchange).
+  useEffect(() => {
+    const q = new URLSearchParams()
+    q.set('v', varId)
+    if (siteId) q.set('s', siteId)
+    if (compareId) q.set('c', compareId)
+    if (upto) q.set('y', String(upto))
+    if (theme === 'day') q.set('t', 'day')
+    window.history.replaceState(null, '', `#/?${q.toString()}`)
+  }, [varId, siteId, compareId, upto, theme])
+
   const clearTimers = () => {
     timers.current.forEach((t) => window.clearTimeout(t))
     timers.current = []
   }
   useEffect(() => clearTimers, [])
 
-  // Escape closes the guide first, then the analysis panel.
+  const years = useMemo(() => regions[varId]?.years ?? [], [regions, varId])
+  const lastYear = years.at(-1) ?? 2025
+  const uptoYear = upto && upto < lastYear ? upto : lastYear
+  const truncated = uptoYear < lastYear
+
+  const series = useCallback((vid: string, sid: string): RegionSeries | undefined => regions[vid]?.regions.find((r) => r.id === sid)?.seasons.ANN, [regions])
+
+  // Stats for the years in view: the pipeline's corrected test for the full record, a quick re-test otherwise.
+  const statsFor = useCallback(
+    (vid: string, sid: string): Stats | undefined => {
+      const s = series(vid, sid)
+      if (!s) return undefined
+      if (!truncated) return s.stats
+      const ys = regions[vid].years
+      const keep = ys.map((y) => y <= uptoYear)
+      const q = quickTrend(
+        s.values.filter((_, i) => keep[i]),
+        ys.filter((_, i) => keep[i]),
+      )
+      return q ? { ...q, ciLow: null, ciHigh: null, relChange: null } : undefined
+    },
+    [series, regions, truncated, uptoYear],
+  )
+
+  const colors = useMemo(() => Object.fromEntries(SITES.map((s) => [s.id, VERDICT_COLOR[verdictOf(statsFor(varId, s.id))]])), [statsFor, varId])
+
+  const visible = SITES.filter(
+    (s) =>
+      (biome === 'all' || s.biome === biome) &&
+      s.name.toLowerCase().includes(query.toLowerCase()) &&
+      (verdictFilter === 'all' || verdictOf(statsFor(varId, s.id)) === verdictFilter),
+  )
+
+  // Escape closes the guide first, then the comparison, then the case file.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       if (guide) setGuide(false)
+      else if (compareId) setCompareId(null)
       else if (siteId) {
         setSiteId(null)
         setSpinning(true)
@@ -614,27 +773,28 @@ export default function CommandCenter() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [guide, siteId])
-
-  const variable = manifest?.variables.find((v) => v.id === varId)
-  const series = useCallback((vid: string, sid: string): RegionSeries | undefined => regions[vid]?.regions.find((r) => r.id === sid)?.seasons.ANN, [regions])
-  const colors = useMemo(() => Object.fromEntries(SITES.map((s) => [s.id, VERDICT_COLOR[verdictOf(series(varId, s.id)?.stats)]])), [series, varId])
-
-  const visible = SITES.filter(
-    (s) =>
-      (biome === 'all' || s.biome === biome) &&
-      s.name.toLowerCase().includes(query.toLowerCase()) &&
-      (!onlySig || ['rising', 'falling'].includes(verdictOf(series(varId, s.id)?.stats))),
-  )
+  }, [guide, compareId, siteId])
 
   const select = useCallback((id: string) => {
     const s = SITES.find((x) => x.id === id)!
     setSiteId(id)
+    setCompareId((c) => (c === id ? null : c))
     setStage('idle')
     setStep(0)
     setSpinning(false)
     if (id !== 'glb') setFocus({ lat: s.lat, lon: s.lon, t: Date.now() })
   }, [])
+
+  // Swing the camera to the midpoint of the two sites so both are in view.
+  const chooseCompare = (id: string | null) => {
+    setCompareId(id)
+    const a = SITES.find((x) => x.id === siteId)
+    const b = SITES.find((x) => x.id === id)
+    if (a && b && a.id !== 'glb' && b.id !== 'glb') {
+      const [lon, lat] = geoInterpolate([a.lon, a.lat], [b.lon, b.lat])(0.5)
+      setFocus({ lat, lon, t: Date.now() })
+    }
+  }
 
   const runDiagnostic = useCallback(() => {
     setStage('running')
@@ -650,6 +810,8 @@ export default function CommandCenter() {
       const s = d.steps[stepIndex]
       clearTimers()
       setDemo({ i, step: stepIndex })
+      setCompareId(null)
+      setUpto(null)
       setVarId(s.varId)
       select(s.siteId)
       timers.current.push(window.setTimeout(runDiagnostic, 1400))
@@ -658,12 +820,27 @@ export default function CommandCenter() {
     [select, runDiagnostic],
   )
 
+  const share = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      window.prompt('Copy this link:', window.location.href)
+    }
+  }
+
   const site = SITES.find((s) => s.id === siteId) ?? null
+  const cmpSite = SITES.find((s) => s.id === compareId) ?? null
   const cur = site ? series(varId, site.id) : undefined
-  const verdict = verdictOf(cur?.stats)
+  const curStats = site ? statsFor(varId, site.id) : undefined
+  const cmp = cmpSite ? series(varId, cmpSite.id) : undefined
+  const cmpStats = cmpSite ? statsFor(varId, cmpSite.id) : undefined
+  const verdict = verdictOf(curStats)
   const def = DEFINITIONS[varId]
-  const years = regions[varId]?.years ?? []
   const passed = checks.filter((c) => c.status === 'pass').length
+  const hoverSite = hoverCard ? SITES.find((s) => s.id === hoverCard.id) : undefined
+  const hoverStats = hoverSite ? statsFor(varId, hoverSite.id) : undefined
   const leads = LEADS.filter(
     (l) =>
       (!interest || (INTERESTS.find((i) => i.id === interest)!.vars as readonly string[]).includes(l.varId)) &&
@@ -671,10 +848,12 @@ export default function CommandCenter() {
   )
 
   if (error) return <div className="cc-grid flex h-screen items-center justify-center p-6 font-mono text-rose-300">{error}</div>
+  const variable = manifest?.variables.find((v) => v.id === varId)
   if (!manifest || !variable) return <div className="cc-grid flex h-screen items-center justify-center font-mono tracking-[0.3em] text-cyan-300">INITIALISING…</div>
+  const short = def?.short ?? variable.label
 
   return (
-    <div className="cc-grid relative flex h-screen flex-col overflow-hidden font-sans text-slate-200">
+    <div data-theme={theme} className="cc-grid relative flex h-screen flex-col overflow-hidden font-sans text-slate-200">
       <div className="cc-scan pointer-events-none absolute inset-x-0 top-0 z-0 h-24 bg-gradient-to-b from-transparent via-cyan-400/5 to-transparent" />
 
       {/* Header telemetry */}
@@ -708,22 +887,30 @@ export default function CommandCenter() {
         </div>
         <nav className="ml-auto flex gap-2">
           <button
+            onClick={() => setTheme((t) => (t === 'night' ? 'day' : 'night'))}
+            className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 px-2.5 py-1.5 text-xs text-cyan-200 transition hover:bg-cyan-400/10"
+            aria-label={theme === 'night' ? 'Switch to daylight theme' : 'Switch to night theme'}
+          >
+            {theme === 'night' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            <span className="max-sm:hidden">{theme === 'night' ? 'Daylight' : 'Orbit night'}</span>
+          </button>
+          <button
             onClick={() => setGuide(true)}
             className="flex items-center gap-1.5 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/20"
           >
             <Compass className="h-3.5 w-3.5" /> Start investigating
           </button>
           <a href="#/map" className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 px-3 py-1.5 text-xs text-cyan-200 transition hover:bg-cyan-400/10">
-            <MapIcon className="h-3.5 w-3.5" /> Trend map
+            <MapIcon className="h-3.5 w-3.5" /> <span className="max-sm:hidden">Trend map</span>
           </a>
         </nav>
       </header>
 
       <main className="relative z-10 flex min-h-0 flex-1 gap-3 p-3">
-        {/* Left sidebar: variable, filters, sites, demos */}
+        {/* Left rail: variable, filters, sites, demos */}
         <aside className="cc-glass flex w-72 shrink-0 flex-col gap-4 overflow-y-auto rounded-xl p-4 max-lg:hidden">
           <section>
-            <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">VARIABLE</h2>
+            <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">1 · PICK A CLUE</h2>
             <div className="grid grid-cols-2 gap-1.5">
               {manifest.variables.map((v) => (
                 <button
@@ -750,13 +937,14 @@ export default function CommandCenter() {
 
           <section>
             <h2 className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">
-              <Filter className="h-3 w-3" /> FILTER SITES
+              <Filter className="h-3 w-3" /> 2 · PICK A PLACE
             </h2>
             <label className="flex items-center gap-2 rounded-md border border-slate-700/70 bg-slate-900/50 px-2 py-1.5">
               <Search className="h-3.5 w-3.5 text-slate-500" />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search sites" aria-label="Search sites" className="w-full bg-transparent text-xs outline-none placeholder:text-slate-600" />
             </label>
-            <div className="mt-2 flex flex-wrap gap-1">
+            <p className="mt-2 text-[10px] tracking-wider text-slate-500">TYPE OF PLACE</p>
+            <div className="mt-1 flex flex-wrap gap-1">
               {(['all', ...new Set(SITES.map((s) => s.biome))] as const).map((b) => (
                 <button
                   key={b}
@@ -768,16 +956,27 @@ export default function CommandCenter() {
                 </button>
               ))}
             </div>
-            <label className="mt-2 flex cursor-pointer items-center gap-2 text-[11px] text-slate-400">
-              <input type="checkbox" checked={onlySig} onChange={(e) => setOnlySig(e.target.checked)} className="accent-cyan-400" /> Significant trends only
-            </label>
+            <p className="mt-2 text-[10px] tracking-wider text-slate-500">VERDICT FOR {short.toUpperCase()}</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {(['all', 'rising', 'falling', 'noise'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setVerdictFilter(v)}
+                  aria-pressed={verdictFilter === v}
+                  className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${verdictFilter === v ? 'border-cyan-300/60 bg-cyan-400/15 text-cyan-100' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                >
+                  {v !== 'all' && <span className="h-1.5 w-1.5 rounded-full" style={{ background: VERDICT_COLOR[v] }} />}
+                  {v === 'all' ? 'all' : VERDICT_TEXT[v].toLowerCase()}
+                </button>
+              ))}
+            </div>
           </section>
 
           <section>
             <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">SITES · {visible.length}</h2>
             <ul className="space-y-1">
               {visible.map((s) => {
-                const v = verdictOf(series(varId, s.id)?.stats)
+                const v = verdictOf(statsFor(varId, s.id))
                 return (
                   <li key={s.id}>
                     <button
@@ -796,6 +995,7 @@ export default function CommandCenter() {
                   </li>
                 )
               })}
+              {!visible.length && <li className="text-[11px] text-slate-500">No sites match. Try “all”.</li>}
             </ul>
           </section>
 
@@ -817,19 +1017,62 @@ export default function CommandCenter() {
           </section>
         </aside>
 
-        {/* Globe */}
+        {/* Center stage: globe */}
         <section className="relative min-w-0 flex-1">
-          <Globe sites={SITES} colors={colors} selected={siteId} focus={focus} spinning={spinning} onPick={select} />
+          <Globe sites={SITES} colors={colors} selected={siteId} compare={compareId} focus={focus} spinning={spinning} theme={theme} onPick={select} onHover={setHoverCard} />
 
-          <div className="cc-glass absolute bottom-3 left-3 flex max-w-[calc(100%-4.5rem)] flex-wrap items-center gap-3 rounded-lg px-3 py-2 text-[10px] tracking-wider text-slate-400">
+          {/* Hover card: headline stats before opening the case file */}
+          {hoverSite && hoverCard && (
+            <div className="cc-glass cc-rise pointer-events-none absolute z-20 w-56 rounded-lg p-3" style={{ left: hoverCard.x + 18, top: hoverCard.y + 18 }}>
+              <p className="text-[10px] tracking-[0.2em] text-cyan-400">{hoverSite.biome.toUpperCase()}</p>
+              <p className="text-sm font-semibold text-slate-100">{hoverSite.name}</p>
+              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-300">
+                <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[verdictOf(hoverStats)] }} />
+                {short}: {VERDICT_TEXT[verdictOf(hoverStats)].toLowerCase()}
+                {hoverStats?.slopePerDecade != null && (
+                  <span className="font-mono text-slate-400">
+                    ({hoverStats.slopePerDecade > 0 ? '+' : ''}
+                    {fmt(hoverStats.slopePerDecade, 2)} per 10 yr)
+                  </span>
+                )}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">{hoverSite.story.takeaway.split('. ')[0]}.</p>
+              <p className="mt-1.5 text-[10px] text-cyan-300">Click to open the case file</p>
+            </div>
+          )}
+
+          {/* Time machine: re-test on the data up to a chosen year */}
+          <div className="cc-glass absolute bottom-3 left-1/2 w-[min(420px,calc(100%-120px))] -translate-x-1/2 rounded-lg px-3 py-2 max-lg:bottom-14 max-lg:w-[calc(100%-24px)]">
+            <div className="flex items-center justify-between text-[10px] tracking-wider text-slate-400">
+              <span>
+                TIME MACHINE · DATA UP TO <span className="font-mono text-cyan-200">{uptoYear}</span>
+                <Info text={EXPLAIN.timeline} />
+              </span>
+              {truncated && (
+                <button onClick={() => setUpto(null)} className="text-cyan-300 hover:text-cyan-100">
+                  reset to {lastYear}
+                </button>
+              )}
+            </div>
+            <input
+              type="range"
+              min={(years[0] ?? 2003) + 6}
+              max={lastYear}
+              value={uptoYear}
+              onChange={(e) => setUpto(Number(e.target.value) >= lastYear ? null : Number(e.target.value))}
+              className="mt-1 w-full accent-cyan-400"
+              aria-label="Use data up to this year"
+            />
+          </div>
+
+          <div className="cc-glass absolute top-3 left-3 flex flex-col gap-1 rounded-lg px-3 py-2 text-[10px] tracking-wider text-slate-400 max-xl:hidden">
             {(['rising', 'falling', 'noise'] as const).map((v) => (
               <span key={v} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 6px ${VERDICT_COLOR[v]}` }} />
                 {VERDICT_TEXT[v].toUpperCase()}
               </span>
             ))}
-            <span className="text-slate-600">|</span>
-            <span>{(def?.short ?? variable.label).toUpperCase()} · 2003–2025 · REAL = UNDER 1-IN-20 CHANCE OF LUCK</span>
+            <span className="text-slate-500">REAL = UNDER 1-IN-20 LUCK</span>
           </div>
           <button
             onClick={() => setSpinning((s) => !s)}
@@ -842,7 +1085,7 @@ export default function CommandCenter() {
           {!site && !demo && (
             <div className="cc-glass cc-rise absolute top-3 right-3 w-72 rounded-xl p-4 max-lg:hidden">
               <p className="text-[10px] font-semibold tracking-[0.2em] text-cyan-400">YOUR MISSION</p>
-              <p className="mt-1 text-sm text-slate-100">Is {(def?.short ?? variable.label).toLowerCase()} really changing, and where?</p>
+              <p className="mt-1 text-sm text-slate-100">Is {short.toLowerCase()} really changing, and where?</p>
               <ol className="mt-3 space-y-2">
                 {DETECTIVE_STEPS.map((d) => (
                   <li key={d.n} className="flex gap-2.5">
@@ -857,14 +1100,14 @@ export default function CommandCenter() {
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                 {(['rising', 'falling', 'noise'] as const).map((v) => (
                   <div key={v} className="rounded-md border border-slate-700/60 bg-slate-950/40 py-1.5">
-                    <div className="text-base font-semibold" style={{ color: VERDICT_COLOR[v], textShadow: `0 0 10px ${VERDICT_COLOR[v]}` }}>
-                      {SITES.filter((s) => verdictOf(series(varId, s.id)?.stats) === v).length}
+                    <div className="text-base font-semibold" style={{ color: VERDICT_COLOR[v] }}>
+                      {SITES.filter((s) => verdictOf(statsFor(varId, s.id)) === v).length}
                     </div>
                     <div className="text-[9px] tracking-wider text-slate-500 uppercase">{VERDICT_TEXT[v]}</div>
                   </div>
                 ))}
               </div>
-              <p className="mt-1 text-center text-[10px] text-slate-500">sites, for {(def?.short ?? variable.label).toLowerCase()}</p>
+              <p className="mt-1 text-center text-[10px] text-slate-500">sites, for {short.toLowerCase()}</p>
               <button
                 onClick={() => playDemo(0, 0)}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/20"
@@ -874,7 +1117,7 @@ export default function CommandCenter() {
             </div>
           )}
 
-          {/* Site picker for small screens, where the sidebar is hidden */}
+          {/* Site picker for small screens, where the left rail is hidden */}
           <div className="absolute inset-x-3 top-3 flex gap-2 overflow-x-auto lg:hidden">
             {SITES.map((s) => (
               <button key={s.id} onClick={() => select(s.id)} className="cc-glass shrink-0 rounded-full px-3 py-1 text-xs">
@@ -905,46 +1148,127 @@ export default function CommandCenter() {
           )}
         </section>
 
-        {/* Analysis panel */}
+        {/* Right rail: case file */}
         {site && (
           <aside
             key={site.id + varId}
-            className="cc-glass cc-slide absolute top-3 right-3 bottom-3 z-20 flex w-[min(380px,calc(100%-24px))] flex-col overflow-y-auto rounded-xl p-4 lg:static lg:w-96"
+            className="cc-glass cc-slide absolute top-3 right-3 bottom-3 z-20 flex w-[min(400px,calc(100%-24px))] flex-col overflow-y-auto rounded-xl p-4 lg:static lg:w-[400px] lg:shrink-0"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-[10px] tracking-[0.2em] text-cyan-400">CASE FILE · {site.biome.toUpperCase()}</p>
-                <h2 className="cc-glow mt-0.5 text-lg font-semibold text-cyan-50">{site.name}</h2>
-                <p className="font-mono text-[11px] text-slate-500">
+                <h2 className="cc-glow mt-0.5 text-lg leading-snug font-semibold text-cyan-50">{site.story.headline}</h2>
+                <p className="mt-0.5 font-mono text-[11px] text-slate-500">
                   <Crosshair className="mr-1 inline h-3 w-3" />
-                  {Math.abs(site.lat).toFixed(1)}°{site.lat >= 0 ? 'N' : 'S'} {Math.abs(site.lon).toFixed(1)}°{site.lon >= 0 ? 'E' : 'W'}
+                  {site.name} · {fmtLat(site.lat)} {fmtLon(site.lon)}
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setSiteId(null)
-                  setSpinning(true)
-                }}
-                className="rounded-md p-1 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
-                aria-label="Close panel"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 gap-1">
+                <button onClick={share} className="rounded-md p-1 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200" aria-label="Copy a link to this finding" title="Copy a link to this finding">
+                  {copied ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Link2 className="h-4 w-4" />}
+                </button>
+                <button
+                  onClick={() => {
+                    setSiteId(null)
+                    setCompareId(null)
+                    setSpinning(true)
+                  }}
+                  className="rounded-md p-1 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
+                  aria-label="Close case file"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">{site.blurb}</p>
 
-            {cur ? (
+            <p className="mt-3 text-sm leading-relaxed text-slate-200">{site.story.takeaway}</p>
+
+            <details className="mt-3 rounded-lg border border-cyan-400/15 bg-slate-950/30 p-3">
+              <summary className="cursor-pointer text-[10px] font-semibold tracking-[0.2em] text-cyan-400 select-none">BACKGROUND FILE · WHAT SCIENTISTS KNOW</summary>
+              <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-300">
+                {site.story.facts.map((f) => (
+                  <li key={f} className="flex gap-2">
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-cyan-400" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </details>
+
+            <div className="mt-3 rounded-lg border border-emerald-400/25 bg-emerald-400/5 p-3">
+              <p className="text-[10px] font-semibold tracking-[0.2em] text-emerald-300">WHY SHOULD YOU CARE?</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-300">{site.story.why}</p>
+            </div>
+
+            <label className="mt-4 flex items-center gap-2 text-[11px] text-slate-400">
+              <GitCompare className="h-3.5 w-3.5 text-amber-300" />
+              Compare with
+              <select
+                value={compareId ?? ''}
+                onChange={(e) => chooseCompare(e.target.value || null)}
+                className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-xs text-slate-200 outline-none focus:border-amber-300"
+              >
+                <option value="">nobody</option>
+                {SITES.filter((s) => s.id !== site.id).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <Info text={EXPLAIN.compare} />
+            </label>
+
+            {cur && curStats ? (
               <>
-                <div className="mt-4 rounded-lg border border-cyan-400/15 bg-slate-950/40 p-3 pb-4">
-                  <div className="mb-1 flex justify-between text-[10px] tracking-wider text-slate-400">
+                <div className="mt-3 rounded-lg border border-cyan-400/15 bg-slate-950/40 p-3 pb-4">
+                  <div className="mb-1 flex flex-wrap justify-between gap-1 text-[10px] tracking-wider text-slate-400">
                     <span>
-                      {(def?.short ?? variable.label).toUpperCase()} · EACH YEAR VS. NORMAL
+                      3 · THE EVIDENCE: {short.toUpperCase()} EACH YEAR VS. NORMAL
                       <Info text={EXPLAIN.chart} />
                     </span>
+                    {cmpSite && (
+                      <span className="flex items-center gap-2 normal-case">
+                        <span className="text-cyan-300">● {site.name}</span>
+                        <span style={{ color: COMPARE_COLOR }}>● {cmpSite.name}</span>
+                      </span>
+                    )}
                   </div>
-                  <SeriesChart years={years} values={cur.values} stats={cur.stats} color={VERDICT_COLOR[verdict]} />
+                  <SeriesChart
+                    years={years}
+                    upto={uptoYear}
+                    series={[
+                      { values: cur.values, stats: curStats, color: VERDICT_COLOR[verdict], label: site.id },
+                      ...(cmp && cmpStats && cmpSite ? [{ values: cmp.values, stats: cmpStats, color: COMPARE_COLOR, label: cmpSite.id }] : []),
+                    ]}
+                  />
                   <p className="mt-3 text-[10px] text-slate-500">Dots: one per year · Bright line: the trend · Dashed: how steep it could plausibly be</p>
                 </div>
+
+                {cmpSite && cmpStats && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {[
+                      { s: site, st: curStats, col: VERDICT_COLOR[verdict] },
+                      { s: cmpSite, st: cmpStats, col: COMPARE_COLOR },
+                    ].map(({ s, st, col }) => (
+                      <div key={s.id} className="rounded-lg border p-2.5" style={{ borderColor: `${col}55` }}>
+                        <p className="truncate text-xs font-semibold" style={{ color: col }}>
+                          {s.name}
+                        </p>
+                        <p className="mt-0.5 text-sm text-slate-100">{VERDICT_TEXT[verdictOf(st)]}</p>
+                        <p className="font-mono text-[11px] text-slate-400">
+                          {st.slopePerDecade !== null && st.slopePerDecade > 0 ? '+' : ''}
+                          {fmt(st.slopePerDecade, 2)} per 10 yr
+                        </p>
+                        <p className="font-mono text-[11px] text-slate-500">p {fmtP(st.p)}</p>
+                      </div>
+                    ))}
+                    <p className="col-span-2 text-[11px] text-slate-400">
+                      {verdictOf(curStats) === verdictOf(cmpStats)
+                        ? `Same verdict in both places: ${VERDICT_TEXT[verdictOf(curStats)].toLowerCase()}.`
+                        : `Different stories: ${site.name} is ${VERDICT_TEXT[verdictOf(curStats)].toLowerCase()}, ${cmpSite.name} is ${VERDICT_TEXT[verdictOf(cmpStats)].toLowerCase()}. Same satellites, same years.`}
+                    </p>
+                  </div>
+                )}
 
                 <button
                   onClick={runDiagnostic}
@@ -952,14 +1276,14 @@ export default function CommandCenter() {
                   className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-cyan-300/50 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 py-2.5 text-sm font-semibold tracking-wider text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.15)] transition hover:from-cyan-500/30 hover:to-emerald-500/30 disabled:opacity-70"
                 >
                   {stage === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
-                  {stage === 'running' ? 'RUNNING TREND TEST…' : stage === 'done' ? 'RUN AGAIN' : 'RUN TREND TEST'}
+                  {stage === 'running' ? 'RUNNING TREND TEST…' : stage === 'done' ? 'RUN AGAIN' : `4 · TEST IT${truncated ? ` (UP TO ${uptoYear})` : ''}`}
                 </button>
 
                 {stage !== 'idle' && (
                   <ol className="mt-3 space-y-1 font-mono text-[11px]" aria-live="polite">
                     {STAGES.map((s, i) => (
                       <li key={s} className={`flex items-center gap-2 transition ${i < step ? 'text-emerald-300' : i === step && stage === 'running' ? 'text-cyan-200' : 'text-slate-600'}`}>
-                        {i < step ? <CheckCircle2 className="h-3 w-3" /> : i === step && stage === 'running' ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="h-3 w-3" />}
+                        {i < step ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : i === step && stage === 'running' ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <span className="h-3 w-3 shrink-0" />}
                         {s}
                       </li>
                     ))}
@@ -972,41 +1296,52 @@ export default function CommandCenter() {
                       {verdict === 'noise' ? <XCircle className="h-5 w-5 shrink-0 text-slate-300" /> : <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: VERDICT_COLOR[verdict] }} />}
                       <div>
                         <p className="text-sm font-semibold text-slate-100">
-                          {verdict === 'noise'
-                            ? 'Case not proven: this could just be natural ups and downs'
-                            : `Case closed: ${(def?.short ?? 'value').toLowerCase()} here is really ${verdict}`}
+                          {verdict === 'noise' ? 'Case not proven: this could just be natural ups and downs' : `Case closed: ${short.toLowerCase()} here is really ${verdict}`}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-400">
                           {verdict === 'noise'
-                            ? `If nothing were really changing, a pattern like this would still turn up more than 1 time in 20 (p ${fmtP(cur.stats.p)}). Not enough evidence yet.`
-                            : `If nothing were really changing, a trend this strong would turn up less than 1 time in 20 (p ${fmtP(cur.stats.p)}). Over ${years.length} years it ${verdict === 'rising' ? 'went up' : 'went down'} by about ${fmt(Math.abs(cur.stats.totalChange ?? 0), 2)}${cur.stats.relChange != null ? ` (${Math.abs(100 * cur.stats.relChange).toFixed(0)}%)` : ''}.`}
+                            ? `If nothing were really changing, a pattern like this would still turn up more than 1 time in 20 (p ${fmtP(curStats.p)}). Not enough evidence yet.`
+                            : `If nothing were really changing, a trend this strong would turn up less than 1 time in 20 (p ${fmtP(curStats.p)}). From ${years[0]} to ${uptoYear} it ${verdict === 'rising' ? 'went up' : 'went down'} by about ${fmt(Math.abs(curStats.totalChange ?? 0), 2)}${curStats.relChange != null ? ` (${Math.abs(100 * curStats.relChange).toFixed(0)}%)` : ''}.`}
                         </p>
+                        {truncated && (
+                          <p className="mt-1 text-[11px] text-amber-200">
+                            Time machine on: a quick re-test on {curStats.n} years, without the correction for year-to-year memory, so treat it as a rough guide.
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex justify-around">
-                      <Ring value={cur.stats.p === null ? 0 : 1 - cur.stats.p} label={cur.stats.p === null ? '–' : `${Math.floor(100 * (1 - cur.stats.p))}%`} sub="Not luck (1 − p)" color={VERDICT_COLOR[verdict]} info={EXPLAIN.p} />
-                      <Ring value={Math.min(1, Math.abs(cur.stats.snr ?? 0) / 2)} label={fmt(cur.stats.snr, 2)} sub="Trend vs. wobble" color="#22d3ee" info={EXPLAIN.snr} />
-                      <Ring value={years.length ? cur.stats.n / years.length : 0} label={`${cur.stats.n}`} sub="Years used" color="#34d399" info={EXPLAIN.years} />
+                      <Ring
+                        value={curStats.p === null ? 0 : 1 - curStats.p}
+                        label={curStats.p === null ? '–' : `${Math.floor(100 * (1 - curStats.p))}%`}
+                        sub="Not luck (1 − p)"
+                        color={VERDICT_COLOR[verdict]}
+                        info={EXPLAIN.p}
+                      />
+                      <Ring value={Math.min(1, Math.abs(curStats.snr ?? 0) / 2)} label={fmt(curStats.snr, 2)} sub="Trend vs. wobble" color="#22d3ee" info={EXPLAIN.snr} />
+                      <Ring value={years.length ? curStats.n / years.length : 0} label={`${curStats.n}`} sub="Years used" color="#34d399" info={EXPLAIN.years} />
                     </div>
 
                     <div className="space-y-3">
                       <Bar
                         label="Speed of change"
                         info={EXPLAIN.rate}
-                        value={cur.stats.slopePerDecade ?? 0}
-                        max={Math.max(Math.abs(cur.stats.ciLow ?? 0), Math.abs(cur.stats.ciHigh ?? 0), 1e-9)}
+                        value={curStats.slopePerDecade ?? 0}
+                        max={Math.max(Math.abs(curStats.ciLow ?? 0), Math.abs(curStats.ciHigh ?? 0), Math.abs(curStats.slopePerDecade ?? 0), 1e-9)}
                         color={VERDICT_COLOR[verdict]}
-                        text={`${(cur.stats.slopePerDecade ?? 0) > 0 ? '+' : ''}${fmt(cur.stats.slopePerDecade)} ${perDecade(variable.trendUnits)}`}
+                        text={`${(curStats.slopePerDecade ?? 0) > 0 ? '+' : ''}${fmt(curStats.slopePerDecade)} ${perDecade(variable.trendUnits)}`}
                       />
-                      <Bar label="Likely range" info={EXPLAIN.range} value={1} max={1} color="rgba(34,211,238,0.5)" text={`${fmt(cur.stats.ciLow)} to ${fmt(cur.stats.ciHigh)}`} />
+                      {curStats.ciLow !== null && (
+                        <Bar label="Likely range" info={EXPLAIN.range} value={1} max={1} color="rgba(34,211,238,0.5)" text={`${fmt(curStats.ciLow)} to ${fmt(curStats.ciHigh)}`} />
+                      )}
                       <Bar
-                        label={`Total change ${years[0]}–${years.at(-1)}`}
+                        label={`Total change ${years[0]}–${uptoYear}`}
                         info={EXPLAIN.total}
-                        value={Math.abs(cur.stats.slopePerDecade ?? 0)}
-                        max={Math.max(Math.abs(cur.stats.ciLow ?? 0), Math.abs(cur.stats.ciHigh ?? 0), 1e-9)}
+                        value={Math.abs(curStats.slopePerDecade ?? 0)}
+                        max={Math.max(Math.abs(curStats.ciLow ?? 0), Math.abs(curStats.ciHigh ?? 0), Math.abs(curStats.slopePerDecade ?? 0), 1e-9)}
                         color="#34d399"
-                        text={`${fmt(cur.stats.totalChange)}${cur.stats.relChange != null ? ` (${(100 * cur.stats.relChange).toFixed(0)}%)` : ''}`}
+                        text={`${fmt(curStats.totalChange)}${curStats.relChange != null ? ` (${(100 * curStats.relChange).toFixed(0)}%)` : ''}`}
                       />
                     </div>
                     <p className="text-[10px] leading-relaxed text-slate-500">
