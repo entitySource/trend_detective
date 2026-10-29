@@ -282,13 +282,24 @@ export const DEFINITIONS: Record<string, { short: string; plain: string; source:
   precip: { short: 'Precipitation', plain: 'How much rain and snow falls, in millimetres per day, combined from a fleet of satellites.', source: 'NASA GPM IMERG' },
   ndvi: { short: 'Greenness', plain: 'How green and leafy the land is: near 0 is bare ground, near 1 is dense forest.', source: 'NASA MODIS Terra' },
   aod: { short: 'Haze', plain: 'How much sunlight dust, smoke and pollution particles block. 0 is crystal-clear air; above 0.5 is very hazy.', source: 'NASA MERRA-2 aerosols' },
+  lst: { short: 'Ground heat', plain: 'How hot the ground surface itself gets in the daytime, like the heat you feel off a pavement. It swings more than air temperature.', source: 'NASA MODIS Terra' },
+  snow: { short: 'Snow cover', plain: 'The share of the ground covered by snow, from 0% to 100%. Cloudy days hide the ground, so some months have gaps.', source: 'NASA MODIS Terra' },
+  soil: { short: 'Soil moisture', plain: 'How much water sits in the top 10 cm of soil, from a computer model fed with satellite and weather data.', source: 'NASA GLDAS land model' },
+  seaice: { short: 'Sea ice', plain: 'How much of the ocean surface is covered by floating ice, from 0% to 100%, seen by microwave satellites through clouds and polar night.', source: 'NASA/NSIDC passive microwave' },
+  sst: { short: 'Ocean heat', plain: 'The temperature of the top skin of the ocean. Oceans soak up most of the extra heat from global warming.', source: 'NASA MODIS Aqua' },
+  no2: { short: 'NO₂ pollution', plain: 'Nitrogen dioxide in the lower air, a gas mostly from car exhausts and power plants. A good fingerprint of burning fuel.', source: 'NASA OMI on Aura' },
+  ozone: { short: 'Ozone layer', plain: 'The total ozone above you, in Dobson units. Ozone high up blocks harmful UV rays, like Earth’s sunscreen.', source: 'NASA OMI on Aura' },
+  airs: { short: 'Upper-air temp.', plain: 'Air temperature about 30 km up, in the stratosphere. Extra CO₂ warms the surface but cools this layer: a fingerprint of greenhouse warming.', source: 'NASA AIRS on Aqua' },
+  chlor: { short: 'Ocean plankton', plain: 'Chlorophyll in sea water, a sign of tiny floating plants (phytoplankton) that feed ocean food chains.', source: 'NASA MODIS Aqua' },
+  sealevel: { short: 'Sea level', plain: 'The height of the sea surface measured by radar satellites, compared with its usual level, in millimetres.', source: 'NASA sea-surface height record' },
 }
 
 export const INTERESTS = [
-  { id: 'heat', label: 'Heat', vars: ['t2m'] },
-  { id: 'water', label: 'Water', vars: ['tws', 'precip'] },
-  { id: 'air', label: 'Air quality', vars: ['aod'] },
-  { id: 'plants', label: 'Plants', vars: ['ndvi'] },
+  { id: 'heat', label: 'Heat', vars: ['t2m', 'lst', 'sst', 'airs'] },
+  { id: 'water', label: 'Water', vars: ['tws', 'precip', 'soil', 'sealevel'] },
+  { id: 'ice', label: 'Ice & snow', vars: ['seaice', 'snow'] },
+  { id: 'air', label: 'Air quality', vars: ['aod', 'no2', 'ozone'] },
+  { id: 'plants', label: 'Plants', vars: ['ndvi', 'chlor'] },
 ] as const
 
 export const PLACES: { id: Biome; label: string }[] = [
@@ -325,6 +336,17 @@ export const LEADS: { varId: string; siteId: string; why: string }[] = [
   { varId: 't2m', siteId: 'glb', why: 'The global warming signal: about 0.2–0.3 °C per decade since 2000.' },
   { varId: 'precip', siteId: 'sah', why: 'Sahel rainfall has partly recovered since the 1980s droughts (Biasutti 2019).' },
   { varId: 'precip', siteId: 'amz', why: 'Longer dry seasons and record droughts in 2005, 2010, 2015 and 2023.' },
+  { varId: 'seaice', siteId: 'arc', why: 'Arctic sea ice has been shrinking since satellites began watching in 1979 (NSIDC).' },
+  { varId: 'sealevel', siteId: 'glb', why: 'Seas are rising about 3–4 mm a year as ice melts and warm water expands (NASA).' },
+  { varId: 'no2', siteId: 'eur', why: 'Cleaner cars and power plants have cut NO₂ across Europe (Krotkov et al. 2016).' },
+  { varId: 'no2', siteId: 'eas', why: 'China’s NO₂ rose until about 2011, then fell as controls kicked in.' },
+  { varId: 'no2', siteId: 'del', why: 'Traffic and power plants around Delhi: is NO₂ still climbing?' },
+  { varId: 'lst', siteId: 'arc', why: 'Arctic land is warming fastest of all, and the ground feels it first.' },
+  { varId: 'sst', siteId: 'glb', why: 'The oceans absorb about 90% of the extra heat trapped by greenhouse gases.' },
+  { varId: 'airs', siteId: 'glb', why: 'More CO₂ cools the stratosphere while warming the surface: a greenhouse fingerprint.' },
+  { varId: 'snow', siteId: 'arc', why: 'Spring snow is melting earlier across the Northern Hemisphere.' },
+  { varId: 'ozone', siteId: 'glb', why: 'The ozone layer is slowly healing after the 1987 Montreal Protocol banned CFCs.' },
+  { varId: 'soil', siteId: 'eur', why: 'Hotter summers dry Mediterranean soils (shown with a caution: model data).' },
 ]
 
 export const DEMOS = [

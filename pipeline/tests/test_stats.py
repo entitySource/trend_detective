@@ -151,3 +151,18 @@ def test_fdr_on_a_noise_field_and_a_field_with_a_trend_block():
 
 def test_bh_fdr_handles_all_nan():
     assert np.isnan(bh_fdr(np.full(5, np.nan))).all()
+
+
+def test_vectorised_trend_field_matches_series_stats_including_ties():
+    from td.stats import _cell, _complete_cells
+
+    rng = np.random.default_rng(1)
+    years = np.arange(2003, 2026)
+    n = years.size
+    y = rng.standard_normal((n, 300)).cumsum(axis=0) * 0.3 + np.linspace(0, 1, n)[:, None] * rng.standard_normal(300)
+    y[:, :40] = np.round(y[:, :40])  # many ties
+    y[:, 40:50] = 0  # constant
+    y[:, 50:55] = np.r_[np.zeros(n - 3), [100, 100, 100]][:, None]  # sea-ice-like jumps
+    fast = _complete_cells(y, years)
+    slow = np.array([_cell(y[:, i], years) for i in range(y.shape[1])]).T
+    np.testing.assert_allclose(fast, slow, atol=1e-12, equal_nan=True)

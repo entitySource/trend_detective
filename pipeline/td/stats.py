@@ -143,15 +143,69 @@ def _cell(values: np.ndarray, years: np.ndarray) -> tuple[float, float, float]:
     return s["slopePerDecade"], s["p"], s["snr"] if s["snr"] is not None else np.nan
 
 
+def _complete_cells(y: np.ndarray, years: np.ndarray, chunk: int = 20000) -> np.ndarray:
+    """Vectorised series_stats for gap-free series y (n_years, n_cells): rows (slope/decade, vc p, snr).
+
+    Same arithmetic as series_stats + mk_test("vc") (Sen slope over all pairs, tie-corrected Var(S),
+    bias-corrected lag-1 autocorrelation of the Sen-detrended series), done for many cells at once.
+    """
+    n, m = y.shape
+    i, j = np.triu_indices(n, 1)
+    dx = (years[j] - years[i]).astype(float)
+    t = np.arange(n, dtype=float)
+    out = np.empty((3, m))
+    for a in range(0, m, chunk):
+        Y = y[:, a : a + chunk]
+        dy = Y[j] - Y[i]
+        flat = np.ptp(Y, axis=0) == 0
+        slope = np.where(flat, 0.0, np.median(dy / dx[:, None], axis=0))  # per year (= per index step: years are consecutive)
+        # Mann-Kendall S and tie-corrected variance.
+        s = np.sign(dy).sum(axis=0)
+        srt = np.sort(Y, axis=0)
+        same = srt[1:] == srt[:-1]
+        ties = np.zeros(Y.shape[1])
+        run = np.ones(Y.shape[1])
+        for k in range(n):
+            cont = same[k] if k < n - 1 else np.zeros(Y.shape[1], bool)
+            ties += np.where(~cont & (run > 1), run * (run - 1) * (2 * run + 5), 0)
+            run = np.where(cont, run + 1, 1)
+        var_s = (n * (n - 1) * (2 * n + 5) - ties) / 18
+        # Lag-1 autocorrelation of the Sen-detrended series, bias-corrected and clipped.
+        d = np.where(flat, Y, Y - slope * t[:, None])
+        d = d - d.mean(axis=0)
+        den = (d * d).sum(axis=0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            r1 = np.where(den > 0, (d[1:] * d[:-1]).sum(axis=0) / den, 0.0)
+            r1 = np.clip((n * r1 + 1) / (n - 4), 0.0, 0.9)
+            var = var_s * (1 + r1) / (1 - r1)
+            z = np.where((s != 0) & (var > 0), (s - np.sign(s)) / np.sqrt(var), 0.0)
+        p = 2 * sps.norm.sf(np.abs(z))
+        # SNR: slope per decade over the spread of the residuals about Sen's line.
+        x = years.astype(float)
+        resid = Y - (np.median(Y, axis=0) + slope * (x - np.median(x))[:, None])
+        sd = resid.std(axis=0, ddof=1)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            snr = np.where(sd > 0, slope * 10 / sd, np.nan)
+        out[:, a : a + chunk] = (slope * 10, p, snr)
+    return out
+
+
 def trend_field(annual: np.ndarray, years: np.ndarray, n_jobs: int = -1) -> dict[str, np.ndarray]:
-    """Per-cell trend planes (slope per decade, p, FDR q, SNR) for an annual (year, lat, lon) array."""
+    """Per-cell trend planes (slope per decade, p, FDR q, SNR) for an annual (year, lat, lon) array.
+
+    Gap-free cells go through the vectorised path; cells with a few missing years use series_stats.
+    """
     _, nlat, nlon = annual.shape
     flat = annual.reshape(annual.shape[0], -1)
     out = np.full((3, flat.shape[1]), np.nan)
-    todo = np.flatnonzero(np.isfinite(flat).sum(axis=0) >= max(8, MIN_VALID_YEARS_FRAC * len(years)))
-    rows = Parallel(n_jobs=n_jobs, batch_size=256)(delayed(_cell)(flat[:, i], years) for i in todo)
+    nvalid = np.isfinite(flat).sum(axis=0)
+    full = np.flatnonzero(nvalid == len(years))
+    if full.size:
+        out[:, full] = _complete_cells(flat[:, full], years)
+    gappy = np.flatnonzero((nvalid < len(years)) & (nvalid >= max(8, MIN_VALID_YEARS_FRAC * len(years))))
+    rows = Parallel(n_jobs=n_jobs, batch_size=256)(delayed(_cell)(flat[:, i], years) for i in gappy)
     if rows:
-        out[:, todo] = np.array(rows).T
+        out[:, gappy] = np.array(rows).T
     slope, p, snr = (x.reshape(nlat, nlon) for x in out)
     return {"slope": slope, "p": p, "q": bh_fdr(p), "snr": snr}
 

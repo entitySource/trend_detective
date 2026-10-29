@@ -13,7 +13,11 @@ The plan is [`../PLAN-02-earth-trend-detective.md`](../PLAN-02-earth-trend-detec
 - [ ] **Needs people:** Earthdata accounts, plus opening one real granule per product (see `docs/datasets.md` "Still to check").
 - [ ] Phase 1: `fetch.py` / `preprocess.py`, the per-cell Hamed–Rao engine, and the sea-ice validation.
 
-Everything in `web/public/data` is currently **mock data**. The app says so in a banner.
+## Phase 2 (real trends), 30 Oct 2026
+
+`pipeline/scripts/export.py` turns `data/interim/*.npz` into the app's data files for all 15 variables and 5 seasons. It takes about 85 minutes; NO2 and ozone are the slowest because their gappy cells take the per-cell path. `web/public/data` now holds **real NASA data** (316 MB; gitignored, so regenerate it with the command below). `scripts/make_mock.py` still works for UI work without the downloads.
+
+Stop the dev server before exporting. On Windows its file watcher blocks the final folder rename; if that happens, rename `web/public/data.building` to `data` by hand.
 
 ## Layout
 
@@ -40,6 +44,7 @@ python -m venv .venv
 .venv/Scripts/python -m pytest
 .venv/Scripts/python scripts/check_datasets.py
 .venv/Scripts/python scripts/make_mock.py
+.venv/Scripts/python -W ignore scripts/export.py    # real data (needs data/interim from fetch)
 ```
 
 ```bash
