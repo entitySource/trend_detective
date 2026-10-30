@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normCdf, quickTrend } from './trend'
+import { normCdf, quickTrend, turningPoint } from './trend'
 
 const years = Array.from({ length: 23 }, (_, i) => 2003 + i)
 
@@ -33,5 +33,19 @@ describe('normCdf', () => {
     expect(normCdf(0)).toBeCloseTo(0.5, 6)
     expect(normCdf(1.959964)).toBeCloseTo(0.975, 5)
     expect(normCdf(-1.959964)).toBeCloseTo(0.025, 5)
+  })
+})
+
+describe('turningPoint', () => {
+  it('finds the peak of a rise-then-fall', () => {
+    const v = years.map((y) => (y <= 2011 ? 0.01 * (y - 2003) : 0.08 - 0.015 * (y - 2011)) + 0.002 * Math.sin(y))
+    const t = turningPoint(v, years)!
+    expect(Math.abs(t.year - 2011)).toBeLessThanOrEqual(1)
+    expect(t.before.slopePerDecade).toBeGreaterThan(0)
+    expect(t.after.slopePerDecade).toBeLessThan(0)
+  })
+
+  it('stays quiet for a steady trend', () => {
+    expect(turningPoint(years.map((y) => 0.05 * (y - 2003) + 0.01 * Math.sin(y)), years)).toBeNull()
   })
 })

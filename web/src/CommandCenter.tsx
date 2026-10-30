@@ -37,7 +37,7 @@ import {
 } from 'lucide-react'
 import { dataUrl, type Manifest, type TrendStats } from './contract'
 import { DEFINITIONS, DEMOS, INTERESTS, LEADS, PLACES, SITES, type Biome, type Site } from './command/content'
-import { quickTrend } from './command/trend'
+import { quickTrend, turningPoint } from './command/trend'
 
 // ---------- Data and helpers ----------
 
@@ -751,6 +751,17 @@ export default function CommandCenter() {
     [series, regions, truncated, uptoYear],
   )
 
+  // Rise-then-fall check on the selected site's yearly series (years in view only).
+  const twist = useMemo(() => {
+    const s = siteId ? series(varId, siteId) : undefined
+    if (!s) return null
+    const keep = years.map((y) => y <= uptoYear)
+    return turningPoint(
+      s.values.filter((_, i) => keep[i]),
+      years.filter((_, i) => keep[i]),
+    )
+  }, [series, varId, siteId, years, uptoYear])
+
   const colors = useMemo(() => Object.fromEntries(SITES.map((s) => [s.id, VERDICT_COLOR[verdictOf(statsFor(varId, s.id))]])), [statsFor, varId])
 
   const visible = SITES.filter(
@@ -1243,6 +1254,33 @@ export default function CommandCenter() {
                   />
                   <p className="mt-3 text-[10px] text-slate-500">Dots: one per year · Bright line: the trend · Dashed: how steep it could plausibly be</p>
                 </div>
+
+                {twist && (
+                  <div className="mt-3 rounded-lg border border-amber-300/40 bg-amber-400/10 p-3">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-amber-200">
+                      PLOT TWIST: THE TREND CHANGED DIRECTION AROUND {twist.year}
+                      <Info text="One straight line over the whole record can hide a rise followed by a fall. Here two lines, split at the turning year, fit much better than one. The split year is found by searching, so treat these p-values as a rough guide." />
+                    </p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 font-mono text-[11px]">
+                      {[
+                        { label: `${years[0]}–${twist.year}`, t: twist.before },
+                        { label: `${twist.year + 1}–${uptoYear}`, t: twist.after },
+                      ].map(({ label, t }) => (
+                        <div key={label} className="rounded border border-amber-300/20 p-2">
+                          <p className="text-slate-400">{label}</p>
+                          <p className={t.slopePerDecade > 0 ? 'text-rose-300' : 'text-sky-300'}>
+                            {t.slopePerDecade > 0 ? '▲ rising +' : '▼ falling '}
+                            {fmt(t.slopePerDecade, 2)} per 10 yr
+                          </p>
+                          <p className="text-slate-500">p {fmtP(t.p)}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-300">
+                      This is why the whole-record verdict can say “not proven” even when the change is obvious: in a single straight line, the rise and the fall cancel out.
+                    </p>
+                  </div>
+                )}
 
                 {cmpSite && cmpStats && (
                   <div className="mt-3 grid grid-cols-2 gap-2">
