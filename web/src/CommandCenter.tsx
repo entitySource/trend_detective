@@ -914,6 +914,9 @@ export default function CommandCenter() {
           <a href="#/map" className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 px-3 py-1.5 text-xs text-cyan-200 transition hover:bg-cyan-400/10">
             <MapIcon className="h-3.5 w-3.5" /> <span className="max-sm:hidden">Trend map</span>
           </a>
+          <a href="#/methods" className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 px-3 py-1.5 text-xs text-cyan-200 transition hover:bg-cyan-400/10">
+            <HelpCircle className="h-3.5 w-3.5" /> <span className="max-sm:hidden">How it works</span>
+          </a>
         </nav>
       </header>
 
@@ -1398,7 +1401,9 @@ export default function CommandCenter() {
 
       {/* Validation ticker */}
       <footer className="relative z-10 mx-3 mb-3 flex items-center gap-4 overflow-x-auto rounded-lg border border-cyan-400/10 bg-slate-950/50 px-3 py-1.5 font-mono text-[10px] whitespace-nowrap text-slate-500">
-        <span className="text-cyan-400">CHECKS VS PUBLISHED RECORDS</span>
+        <a href="#/checks" className="text-cyan-400 underline-offset-2 hover:underline">
+          CHECKS VS PUBLISHED RECORDS ›
+        </a>
         {checks.map((c) => (
           <span key={c.id} className="flex items-center gap-1" title={c.note}>
             {c.status === 'pass' ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> : c.status === 'fail' ? <XCircle className="h-3 w-3 text-rose-400" /> : <Loader2 className="h-3 w-3 text-slate-500" />}

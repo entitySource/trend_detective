@@ -131,6 +131,14 @@ export default function App() {
           <a href="#/" className="back">
             ← Globe command center
           </a>
+          {' · '}
+          <a href="#/methods" className="back">
+            How it works
+          </a>
+          {' · '}
+          <a href="#/checks" className="back">
+            Can you trust it?
+          </a>
           <p className="sub">
             What is changing on Earth, where, how much, and is it real? {manifest.window.start.slice(0, 4)}–{manifest.window.end.slice(0, 4)}
           </p>

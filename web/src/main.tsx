@@ -1,6 +1,7 @@
 import { lazy, StrictMode, Suspense, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import CommandCenter from './CommandCenter.tsx'
+import { ChecksPage, MethodsPage } from './Guide.tsx'
 import './command.css'
 import './index.css'
 
@@ -13,7 +14,8 @@ const App = lazy(async () => {
   return app
 })
 
-// Two views over the same data: the globe command center (default) and the detailed trend map (#/map).
+// Views over the same data: the globe command center (default), the detailed trend map (#/map), and the
+// reading pages on how it works (#/methods) and how it compares with published science (#/checks).
 function Root() {
   const [hash, setHash] = useState(window.location.hash)
   useEffect(() => {
@@ -21,6 +23,8 @@ function Root() {
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
   }, [])
+  if (hash === '#/checks') return <ChecksPage />
+  if (hash === '#/methods') return <MethodsPage />
   return hash === '#/map' ? (
     <Suspense fallback={<div className="cc-grid flex h-screen items-center justify-center font-mono tracking-[0.3em] text-cyan-300">LOADING MAP…</div>}>
       <App />
