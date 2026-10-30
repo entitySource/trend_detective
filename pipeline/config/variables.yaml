@@ -103,7 +103,7 @@ variables:
     tier: 2
     sphere: land
     label: Land surface temperature
-    product: MOD11C3
+    product: MYD11C3
     version: "061"
     daac: LPCLOUD
     var: LST_Day_CMG
@@ -112,6 +112,7 @@ variables:
     regrid: coarsen_10
     mask: land
     palette: warm
+    caution: "Aqua daytime overpass. Terra (MOD11C3) was dropped because its orbit drift since 2020 made 2022-2025 look 1-2 K too cold. Aqua has drifted later since 2022 too; the 2025 dip (strongest in the tropics) may be partly drift, so treat the last year with care."
   snow:
     tier: 2
     sphere: cryosphere

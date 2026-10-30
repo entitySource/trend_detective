@@ -11,7 +11,7 @@ Decided 26 Oct 2026 from two ECC deep-research passes. Every product below was c
 | 1 | 3 | Haze (AOD) | Atmosphere | MERRA-2 M2TMNXAER `TOTEXTTAU` (5.12.4), reanalysis that assimilates MODIS AOD | Falling in Europe and N America; rising in South Asia; China reverses after about 2008 | de Meij 2012; Gupta 2022 |
 | 1 | 4 | Air temperature | Atmosphere | MERRA-2 M2TMNXSLV (5.12.4) | Warming almost everywhere; North Atlantic "warming hole" | GISTEMP v4 |
 | 1 | 5 | Precipitation | Hydrology | GPM IMERG M (07, ends Sep 2025) | Wet gets wetter, dry gets drier (mostly not significant) | GPCP v2.3 |
-| 2 | 6 | Land surface temperature | Land | MOD11C3 (061) | Arctic warming vs irrigated-land cooling* | MERRA-2 T2M |
+| 2 | 6 | Land surface temperature | Land | MYD11C3 (061, Aqua) | Arctic warming vs irrigated-land cooling* | MERRA-2 T2M |
 | 2 | 7 | Snow cover | Cryosphere | MOD10CM (61) | Spring snow loss vs some autumn gains* | Rutgers Snow Lab |
 | 2 | 8 | Soil moisture + ET | Hydrology | GLDAS_NOAH025_M (2.1) | Mediterranean drying vs Sahel wetting* | ESA CCI soil moisture |
 | 2 | 9 | Sea ice | Cryosphere | NSIDC-0051 (2), polar grid | Arctic loss vs Antarctic gain until 2015 | Parkinson 2019, *PNAS*; NSIDC Sea Ice Index |

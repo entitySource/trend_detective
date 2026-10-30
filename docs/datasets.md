@@ -77,7 +77,7 @@ Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`p
 | Ozone (OMI) | 255 (from Oct 2004) | Near-global ozone roughly flat | **+3.7 DU/decade** (p < 0.0001) | **Suspect**: likely OMI row-anomaly drift; flag before showing |
 | Ozone (OMI) | | Antarctic October hole recovery | −4 DU/decade (p = 0.65) | Not significant; noisy |
 | Sea-surface temp. (MODIS-Aqua day) | 276 | Ocean warming | +0.27 °C/decade (p = 0.07) | Pass (sign, size) |
-| Land surface temp. (MOD11C3 day) | 276 | Arctic land warming fastest | Arctic +0.34 K/decade (p = 0.05); global +0.10 (p = 0.66) | Pass (pattern) |
+| Land surface temp. (MYD11C3 Aqua day; was MOD11C3 Terra, see below) | 276 | Arctic land warming fastest | Arctic +0.55 °C/decade (p = 0.003); global +0.24 (p = 0.024) | Pass (pattern) |
 | Snow cover (MOD10CM) | 271 of 273 | NH spring snow decline | −0.5 %-pts/decade (p = 0.39) | Weak; not significant |
 | Soil moisture (GLDAS 2.1) | 276 | No firm reference | Global topsoil drying −0.45 kg/m²/decade (p = 0.0001) | **Caution**: GLDAS 2.1 forcing changes can create trends |
 | Stratosphere 10 hPa (AIRS) | 276 | CO2 cooling, published ≈ −0.5 to −0.6 K/decade | **−0.58 K/decade** (p < 0.0001); tropics −0.67 (p = 0.001) | Pass. Switched from 50 hPa on 29 Oct: 50 hPa was flat (−0.01 K/decade, p = 0.82) because ozone recovery offsets CO2 there |
@@ -122,3 +122,17 @@ Missing months: snow 2025-09 and 2025-12 (source files unreadable after 3 tries)
 | Stratosphere cooling, 10 hPa | Pass | −0.58 K/decade | |
 
 The failing checks are kept as-is rather than tuned to pass: the app shows them so students can see when a straight-line test is the wrong tool.
+
+## Land surface temperature: Terra → Aqua (30 Oct 2026)
+
+The new "plot twist" check flagged LST falling ~3.7 K/decade after 2019 worldwide, while 2023–24 were record-hot years. Cause: Terra's orbit drift since 2020 (earlier, cooler daytime overpass). Switched to MYD11C3 (Aqua, 061); Terra kept in `data/interim/lst_terra*` for comparison.
+
+| Region | Terra trend (p) | Aqua trend (p) | 2025 anomaly Terra → Aqua |
+|---|---|---|---|
+| Global land | +0.11 °C/decade (0.61) | **+0.24 (0.024)** | −1.77 → −0.52 |
+| Arctic | +0.43 (0.011) | +0.55 (0.003) | +0.54 → +0.85 |
+| Eastern China | +0.45 (0.24) | **+0.62 (0.004)** | −1.26 → +0.18 |
+| Europe | +0.49 (0.051) | **+0.74 (0.001)** | −0.56 → +0.54 |
+| Southeast Asia | +0.11 (0.82) | −0.01 (0.95) | −1.16 → −0.91 |
+
+A smaller 2025 dip remains in the tropics (La Niña, or Aqua's own late-life drift), so LST keeps a caution label.
