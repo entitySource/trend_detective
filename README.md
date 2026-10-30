@@ -60,6 +60,12 @@ npm test
 npm run build      # static site in web/dist (copy web/public/data alongside)
 ```
 
+Deploy to GitHub Pages (pushes `web/dist` as one fresh commit on `gh-pages`; then Settings > Pages > branch `gh-pages`):
+
+```bash
+bash scripts/deploy_pages.sh
+```
+
 The full Phase 1 pipeline needs HDF4 and GDAL. Use `conda env create -f pipeline/environment.yml` for that.
 
 ## Significance method (Phase 1 decision)
