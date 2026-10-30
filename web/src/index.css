@@ -324,4 +324,11 @@ dd {
     border-right: 0;
   }
 }
+
+  .sig-area {
+    margin: 0.5rem 0 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: #b8c4d6;
+  }
 }

@@ -68,6 +68,15 @@ def _box_mean(cube: np.ndarray, lats: np.ndarray, mask: np.ndarray) -> np.ndarra
         return np.where(den > 0, num / den, np.nan)
 
 
+def sig_layers(f: dict[str, np.ndarray], lats: np.ndarray, palette: str, out: Path, raw_path: str, grid: dict) -> dict:
+    """Uncorrected layer (p <= ALPHA, no FDR) and the % of mapped area significant with and without FDR."""
+    _png(out / raw_path, classes(f["slope"], f["p"], ALPHA, palette), grid)
+    w = np.cos(np.radians(lats))[:, None] * np.isfinite(f["slope"])
+    area = lambda x: round(100 * float(np.sum(w * np.nan_to_num(x <= ALPHA, nan=0)) / np.sum(w)), 1) if w.sum() else 0.0
+    with np.errstate(invalid="ignore"):
+        return {"raw": area(f["p"]), "fdr": area(f["q"])}
+
+
 def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n_jobs: int = -1) -> dict:
     """Trend layers, grids and regional series for one variable; returns its manifest entry plus contrast/ranking rows."""
     lats, lons = lat_lon(grid)
@@ -102,6 +111,8 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
         layers[season] = {"slope": f"layers/{vid}/{season}/slope.png", "class": f"layers/{vid}/{season}/class.png", "grid": gpath}
         _png(out / layers[season]["slope"], ramp(f["slope"], -vmax, vmax, palette), grid)
         _png(out / layers[season]["class"], classes(f["slope"], f["q"], ALPHA, palette), grid)
+        layers[season]["raw"] = f"layers/{vid}/{season}/raw.png"
+        layers[season]["sigArea"] = sig_layers(f, lats, palette, out, layers[season]["raw"], grid)
 
         regional = []
         coslat = np.cos(np.radians(lats))[:, None]

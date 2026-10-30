@@ -17,6 +17,10 @@ The plan is [`../PLAN-02-earth-trend-detective.md`](../PLAN-02-earth-trend-detec
 
 `pipeline/scripts/export.py` turns `data/interim/*.npz` into the app's data files for all 15 variables and 5 seasons. It takes about 85 minutes; NO2 and ozone are the slowest because their gappy cells take the per-cell path. `web/public/data` now holds **real NASA data** (316 MB; gitignored, so regenerate it with the command below). `scripts/make_mock.py` still works for UI work without the downloads.
 
+How the statistics work, in plain language plus details, with all known caveats: [`docs/methods.md`](docs/methods.md).
+
+Measured on the production build: the command center loads 422 kB, and the map view about 630 kB gzipped (the first overlay is 182 kB), within the plan's 3-second first-paint target on 4G. The 75 per-cell grids (4 MB each) load only when a map cell is clicked.
+
 Stop the dev server before exporting. On Windows its file watcher blocks the final folder rename; if that happens, rename `web/public/data.building` to `data` by hand.
 
 ## Layout
@@ -44,7 +48,8 @@ python -m venv .venv
 .venv/Scripts/python -m pytest
 .venv/Scripts/python scripts/check_datasets.py
 .venv/Scripts/python scripts/make_mock.py
-.venv/Scripts/python -W ignore scripts/export.py    # real data (needs data/interim from fetch)
+.venv/Scripts/python scripts/run_all.py              # everything: fetch (resumable) + export real data
+.venv/Scripts/python scripts/run_all.py --skip-fetch # recompute from data/interim only (~90 min)
 ```
 
 ```bash

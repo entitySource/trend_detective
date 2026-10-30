@@ -12,7 +12,7 @@ export type VariableEntry = {
   trendUnits: string
   palette: string[]
   colorRange: [number, number]
-  layers: Partial<Record<Season, { slope: string; class: string; grid: string }>>
+  layers: Partial<Record<Season, { slope: string; class: string; grid: string; raw?: string; sigArea?: { raw: number; fdr: number } }>>
   regions: string
   pixels: { tileDeg: number; resDeg: number; scale: number; offset: number; path: string } | null
   note?: string

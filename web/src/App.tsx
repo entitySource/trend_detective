@@ -9,7 +9,7 @@ import { dataUrl, type Manifest, type Season } from './contract'
 import { splitAtAntimeridian } from './lib/geo'
 import { cellIndex, loadGrid, readCell } from './lib/grid'
 
-type LayerKind = 'slope' | 'class'
+type LayerKind = 'slope' | 'raw' | 'class'
 type Probe = { lat: number; lon: number; slope: number | null; p: number | null; q: number | null; snr: number | null } | null
 
 const SEASON_LABEL: Record<Season, string> = { ANN: 'Whole year', DJF: 'Dec–Feb', MAM: 'Mar–May', JJA: 'Jun–Aug', SON: 'Sep–Nov' }
@@ -47,7 +47,7 @@ export default function App() {
 
   const variable = manifest?.variables.find((v) => v.id === varId)
   const layer = variable?.layers[season]
-  const overlayUrl = layer ? dataUrl(layer[kind]) : null
+  const overlayUrl = layer ? dataUrl((kind === 'raw' ? layer.raw : layer[kind]) ?? layer.class) : null
 
   // Create the map once the manifest is in.
   useEffect(() => {
@@ -196,10 +196,21 @@ export default function App() {
             <button type="button" aria-pressed={kind === 'slope'} onClick={() => setKind('slope')}>
               How much
             </button>
-            <button type="button" aria-pressed={kind === 'class'} onClick={() => setKind('class')}>
-              Significant only
+            {layer?.raw && (
+              <button type="button" aria-pressed={kind === 'raw'} onClick={() => setKind('raw')} title="Each cell tested on its own, no correction for testing thousands of cells">
+                Significant (raw)
+              </button>
+            )}
+            <button type="button" aria-pressed={kind === 'class'} onClick={() => setKind('class')} title="Corrected for testing thousands of cells at once (false discovery rate)">
+              Significant (corrected)
             </button>
           </div>
+          {layer?.sigArea && kind !== 'slope' && (
+            <p className="sig-area">
+              {layer.sigArea.raw}% of the map looks significant when each cell is tested alone; <strong>{layer.sigArea.fdr}%</strong> survives the correction.
+              {layer.sigArea.raw > 0 && ` About ${Math.round(100 * (1 - layer.sigArea.fdr / layer.sigArea.raw))}% of the raw hotspots could be flukes from testing so many cells.`}
+            </p>
+          )}
         </fieldset>
 
         <div className="legend">
@@ -224,7 +235,7 @@ export default function App() {
               <li>
                 <i className="ns" /> Could be year-to-year noise
               </li>
-              <li className="units">Significant = FDR q ≤ {manifest.fdrAlpha}</li>
+              <li className="units">{kind === 'raw' ? `Significant = p ≤ ${manifest.fdrAlpha}, no correction` : `Significant = FDR q ≤ ${manifest.fdrAlpha}`}</li>
             </ul>
           )}
         </div>

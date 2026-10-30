@@ -148,7 +148,17 @@ SCHEMAS: dict[str, dict] = {
                             "additionalProperties": {
                                 "type": "object",
                                 "required": ["slope", "class", "grid"],
-                                "properties": {"slope": {"type": "string"}, "class": {"type": "string"}, "grid": {"type": "string"}},
+                                "properties": {
+                                    "slope": {"type": "string"},
+                                    "class": {"type": "string"},
+                                    "raw": {"type": "string"},
+                                    "grid": {"type": "string"},
+                                    "sigArea": {
+                                        "type": "object",
+                                        "required": ["raw", "fdr"],
+                                        "properties": {"raw": {"type": "number"}, "fdr": {"type": "number"}},
+                                    },
+                                },
                             },
                         },
                         "regions": {"type": "string"},
