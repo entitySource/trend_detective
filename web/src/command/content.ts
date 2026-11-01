@@ -14,6 +14,8 @@ export type Biome =
   | 'desert'
   | 'dryland'
   | 'tropical coast'
+  | 'mountain'
+  | 'coral reef'
 
 export type Story = {
   headline: string
@@ -274,6 +276,196 @@ export const SITES: Site[] = [
       visual: 'A water-storage line chart that zigzags between drought and flood years.',
     },
   },
+  {
+    id: 'sib',
+    name: 'Siberia',
+    lat: 63,
+    lon: 115,
+    biome: 'polar',
+    bbox: [90, 55, 140, 70],
+    story: {
+      headline: 'Siberia: frozen ground starting to thaw',
+      takeaway: 'Much of Siberia sits on permafrost, ground that has stayed frozen for thousands of years. It is warming faster than most of the planet, and recent summers brought record heat and huge wildfires.',
+      facts: [
+        'In June 2020 the town of Verkhoyansk reached 38 °C, the hottest temperature ever confirmed north of the Arctic Circle (World Meteorological Organization).',
+        'Permafrost stores roughly twice as much carbon as the whole atmosphere holds today. Thawing lets microbes release some of it as CO₂ and methane.',
+        'Wildfires in Yakutia in 2021 burned an area larger than many European countries.',
+      ],
+      why: 'Carbon escaping from thawing ground adds to warming everywhere, not just in Siberia. Thaw also cracks roads, pipelines and buildings built on ground that used to be solid.',
+      visual: 'A photo of a building tilting as the frozen ground under it thaws.',
+    },
+  },
+  {
+    id: 'tib',
+    name: 'Tibetan Plateau',
+    lat: 33,
+    lon: 89,
+    biome: 'mountain',
+    bbox: [78, 28, 100, 38],
+    story: {
+      headline: 'The Tibetan Plateau: Asia’s water tower',
+      takeaway: 'Its glaciers and snow store more ice than anywhere outside the poles, so it is called the “Third Pole”. Great rivers like the Yangtze, Ganges, Indus and Mekong start here.',
+      facts: [
+        'The plateau averages over 4,000 m above sea level, and has warmed faster than the global average over recent decades.',
+        'Most of its glaciers are shrinking, though a few in the Karakoram held steady (the “Karakoram anomaly”).',
+        'Rivers fed by the plateau supply water to well over a billion people downstream.',
+      ],
+      why: 'Melting glaciers first add water to rivers, then, once the ice is gone, take it away. That matters for farms, hydropower and drinking water across Asia.',
+      visual: 'A map of Asia’s great rivers all flowing out from one high plateau.',
+    },
+  },
+  {
+    id: 'arl',
+    name: 'Aral Sea',
+    lat: 45,
+    lon: 60,
+    biome: 'desert',
+    bbox: [58, 43, 62, 47],
+    story: {
+      headline: 'The Aral Sea: a lake that people drained',
+      takeaway: 'Once the fourth-largest lake on Earth, the Aral Sea has mostly dried up because the rivers feeding it were diverted to grow cotton from the 1960s.',
+      facts: [
+        'By the 2010s the lake had lost about 90% of its area; its exposed bed is now a new desert, the Aralkum.',
+        'Dust and salt blowing off the dry lakebed harm crops and people’s health in the region.',
+        'A dam finished in 2005 helped the small northern part refill, so not every part of the story points the same way.',
+      ],
+      why: 'It is one of the clearest examples of humans changing a landscape on a huge scale in a single lifetime, and a warning about how fast water can be overused.',
+      visual: 'NASA satellite images of the lake in 2000 and today, side by side.',
+    },
+  },
+  {
+    id: 'cng',
+    name: 'Congo rainforest',
+    lat: 0,
+    lon: 21,
+    biome: 'rainforest',
+    bbox: [12, -5, 30, 5],
+    story: {
+      headline: 'The Congo rainforest: the world’s quieter lung',
+      takeaway: 'The second-largest rainforest on Earth after the Amazon. It has lost less forest than the Amazon so far, but clearing for small farms and charcoal is growing.',
+      facts: [
+        'The Congo Basin forest covers an area several times the size of France.',
+        'Its peat swamps, only mapped in 2017, hold a huge store of carbon (Dargie et al. 2017, Nature).',
+        'Unlike the Amazon, most clearing here is small-scale farming rather than big ranches.',
+      ],
+      why: 'Healthy rainforests soak up carbon and make their own rain. Comparing the Congo with the Amazon shows how forests respond to different pressures.',
+      visual: 'Two forest maps, Congo and Amazon, coloured by forest lost since 2003.',
+    },
+  },
+  {
+    id: 'hoa',
+    name: 'Horn of Africa',
+    lat: 6,
+    lon: 44,
+    biome: 'dryland',
+    bbox: [38, -2, 51, 12],
+    story: {
+      headline: 'The Horn of Africa: when the rains fail again and again',
+      takeaway: 'Somalia, Ethiopia and Kenya live by two rainy seasons a year. Between 2020 and 2023, five rainy seasons in a row failed, the worst drought there in about 40 years.',
+      facts: [
+        'Millions of livestock died and millions of people needed food aid during the 2020–23 drought.',
+        'Floods followed in late 2023, showing how quickly the region swings between extremes.',
+        'Rain here is strongly linked to ocean temperatures in the Indian and Pacific Oceans, so it varies a lot from year to year.',
+      ],
+      why: 'For families who depend on rain-fed crops and herds, one failed season is hard and five can be disastrous. Spotting a long-term drying trend helps plan for the next drought.',
+      visual: 'A rainfall bar chart with the five failed seasons highlighted.',
+    },
+  },
+  {
+    id: 'cbt',
+    name: 'US Corn Belt',
+    lat: 42,
+    lon: -90,
+    biome: 'farmland',
+    bbox: [-98, 38, -82, 46],
+    story: {
+      headline: 'The US Corn Belt: some of the world’s busiest farmland',
+      takeaway: 'Iowa, Illinois and their neighbours grow a huge share of the world’s corn and soybeans. In summer, satellites see these fields among the most productive on Earth.',
+      facts: [
+        'The United States grows about a third of the world’s corn, most of it in this region.',
+        'Satellites measured some of the planet’s highest summer photosynthesis here, driven by intensive farming (Guanter et al. 2014, PNAS).',
+        'Better crop varieties and farming methods have raised yields steadily for decades.',
+      ],
+      why: 'Food prices around the world depend on harvests here. A hot, dry summer in the Corn Belt can be felt at the supermarket far away.',
+      visual: 'A summer greenness map of the US with the Corn Belt glowing.',
+    },
+  },
+  {
+    id: 'eus',
+    name: 'Eastern United States',
+    lat: 40,
+    lon: -80,
+    biome: 'megacity air',
+    bbox: [-90, 35, -70, 45],
+    story: {
+      headline: 'The Eastern US: cleaner air you can see from space',
+      takeaway: 'From New York to Chicago, clean-air rules for power plants and cars have cut pollution a lot since the early 2000s. NASA’s OMI satellite watched NO₂ drop.',
+      facts: [
+        'NO₂ over the eastern US fell by roughly a third or more between 2005 and the mid-2010s (Krotkov et al. 2016).',
+        'Power plants added scrubbers and switched from coal to gas; newer cars run much cleaner.',
+        'Haze from sulfate particles fell too, so summer skies here are clearer than a generation ago.',
+      ],
+      why: 'Cleaner air means fewer asthma attacks and heart problems. It shows that rules on pollution can work, a useful comparison with India and China.',
+      visual: 'Before/after NO₂ maps of the eastern US, 2005 vs 2020.',
+    },
+  },
+  {
+    id: 'gbr',
+    name: 'Great Barrier Reef',
+    lat: -17,
+    lon: 149.5,
+    biome: 'coral reef',
+    bbox: [145, -24, 154, -10],
+    story: {
+      headline: 'The Great Barrier Reef: corals in hot water',
+      takeaway: 'The largest coral reef system on Earth, about 2,300 km long. When the sea gets too warm for too long, corals turn white (bleach) and can die.',
+      facts: [
+        'Mass bleaching hit the reef in 1998, 2002, 2016, 2017, 2020, 2022 and 2024, increasingly often (Australian Institute of Marine Science).',
+        'Bleaching happens when water stays about 1 °C above the usual summer maximum for several weeks.',
+        'Corals can recover between events, but they need years without another heatwave.',
+      ],
+      why: 'Reefs shelter about a quarter of all ocean species, protect coasts from waves and support fishing and tourism. Ocean heat is their biggest threat.',
+      visual: 'A healthy coral photo next to a bleached one, with the sea temperature that day.',
+    },
+  },
+  {
+    id: 'bgd',
+    name: 'Ganges–Brahmaputra Delta',
+    lat: 23,
+    lon: 90,
+    biome: 'tropical coast',
+    bbox: [88, 21, 92.5, 25],
+    story: {
+      headline: 'The Ganges–Brahmaputra Delta: living at sea level',
+      takeaway: 'Most of Bangladesh is a giant river delta, just a few metres above the sea. Rising seas, sinking land and cyclones make it one of the places most exposed to climate change.',
+      facts: [
+        'Well over 100 million people live in the delta, one of the most crowded places on Earth.',
+        'Parts of the delta sink several millimetres a year as soft river mud settles, adding to sea-level rise.',
+        'Salt water is creeping into rice fields and drinking-water wells near the coast.',
+      ],
+      why: 'Even small rises in sea level here mean more flooding and less farmland for a huge number of people.',
+      visual: 'A map shading the land that lies less than 1 m and 5 m above the sea.',
+    },
+  },
+  {
+    id: 'ant',
+    name: 'Antarctic Peninsula',
+    lat: -65,
+    lon: -62.5,
+    biome: 'ice sheet',
+    bbox: [-70, -70, -55, -60],
+    story: {
+      headline: 'The Antarctic Peninsula: where ice shelves fall apart',
+      takeaway: 'This finger of Antarctica pointing towards South America warmed fast in the late 20th century. Huge floating ice shelves along its coast have broken up.',
+      facts: [
+        'The Larsen B ice shelf, about the size of a small country, collapsed within weeks in 2002.',
+        'Antarctic sea ice set record lows in 2023, after decades of barely changing (NSIDC).',
+        'Penguin species that depend on sea ice have declined on parts of the peninsula.',
+      ],
+      why: 'Ice shelves hold back glaciers. When they break up, the glaciers behind them flow into the sea faster and raise sea level for every coast on Earth.',
+      visual: 'NASA images of Larsen B before and after its 2002 collapse.',
+    },
+  },
 ]
 
 export const DEFINITIONS: Record<string, { short: string; plain: string; source: string }> = {
@@ -282,7 +474,7 @@ export const DEFINITIONS: Record<string, { short: string; plain: string; source:
   precip: { short: 'Precipitation', plain: 'How much rain and snow falls, in millimetres per day, combined from a fleet of satellites.', source: 'NASA GPM IMERG' },
   ndvi: { short: 'Greenness', plain: 'How green and leafy the land is: near 0 is bare ground, near 1 is dense forest.', source: 'NASA MODIS Terra' },
   aod: { short: 'Haze', plain: 'How much sunlight dust, smoke and pollution particles block. 0 is crystal-clear air; above 0.5 is very hazy.', source: 'NASA MERRA-2 aerosols' },
-  lst: { short: 'Ground heat', plain: 'How hot the ground surface itself gets in the daytime, like the heat you feel off a pavement. It swings more than air temperature.', source: 'NASA MODIS Terra' },
+  lst: { short: 'Ground heat', plain: 'How hot the ground surface itself gets in the daytime, like the heat you feel off a pavement. It swings more than air temperature.', source: 'NASA MODIS Aqua' },
   snow: { short: 'Snow cover', plain: 'The share of the ground covered by snow, from 0% to 100%. Cloudy days hide the ground, so some months have gaps.', source: 'NASA MODIS Terra' },
   soil: { short: 'Soil moisture', plain: 'How much water sits in the top 10 cm of soil, from a computer model fed with satellite and weather data.', source: 'NASA GLDAS land model' },
   seaice: { short: 'Sea ice', plain: 'How much of the ocean surface is covered by floating ice, from 0% to 100%, seen by microwave satellites through clouds and polar night.', source: 'NASA/NSIDC passive microwave' },
@@ -313,6 +505,9 @@ export const PLACES: { id: Biome; label: string }[] = [
   { id: 'tropical coast', label: 'Tropical coast' },
   { id: 'dryland', label: 'Dry continent' },
   { id: 'temperate', label: 'Temperate' },
+  { id: 'mountain', label: 'High mountains' },
+  { id: 'coral reef', label: 'Coral reef' },
+  { id: 'planet', label: 'Whole planet' },
 ]
 
 // Leads drawn from published research: why a variable might show a trend in a place.
@@ -347,6 +542,20 @@ export const LEADS: { varId: string; siteId: string; why: string }[] = [
   { varId: 'snow', siteId: 'arc', why: 'Spring snow is melting earlier across the Northern Hemisphere.' },
   { varId: 'ozone', siteId: 'glb', why: 'The ozone layer is slowly healing after the 1987 Montreal Protocol banned CFCs.' },
   { varId: 'soil', siteId: 'eur', why: 'Hotter summers dry Mediterranean soils (shown with a caution: model data).' },
+  { varId: 't2m', siteId: 'sib', why: 'Siberia set a record 38 °C in 2020; is the warming steady or just one hot year?' },
+  { varId: 'lst', siteId: 'sib', why: 'Warmer ground is what thaws permafrost. Does the satellite see the ground heating up?' },
+  { varId: 'snow', siteId: 'tib', why: 'Snow on the “Third Pole” feeds Asia’s great rivers. Is it shrinking?' },
+  { varId: 't2m', siteId: 'tib', why: 'High mountains often warm faster than the lowlands around them.' },
+  { varId: 'tws', siteId: 'arl', why: 'The Aral Sea shrank as its rivers were diverted. Does GRACE still see water vanishing?' },
+  { varId: 'ndvi', siteId: 'cng', why: 'Is Africa’s great rainforest holding its green, unlike parts of the Amazon?' },
+  { varId: 'precip', siteId: 'hoa', why: 'Five rainy seasons failed in a row in 2020–23. Is it a trend or a run of bad luck?' },
+  { varId: 'ndvi', siteId: 'cbt', why: 'Intensive farming makes the Corn Belt one of the greenest places in summer.' },
+  { varId: 'no2', siteId: 'eus', why: 'Clean-air rules cut NO₂ across the eastern US (Krotkov et al. 2016).' },
+  { varId: 'aod', siteId: 'eus', why: 'Cleaner power plants mean less summer haze. Compare it with China and India.' },
+  { varId: 'sst', siteId: 'gbr', why: 'Marine heatwaves bleach the reef’s corals. Is the water getting warmer?' },
+  { varId: 'sealevel', siteId: 'bgd', why: 'Bangladesh lives just above the sea. How fast is the water rising here?' },
+  { varId: 'seaice', siteId: 'ant', why: 'Antarctic sea ice barely changed for decades, then hit record lows in 2023.' },
+  { varId: 't2m', siteId: 'ant', why: 'The Antarctic Peninsula was one of the fastest-warming places in the late 1900s.' },
 ]
 
 export const DEMOS = [

@@ -10,7 +10,7 @@
   --good: #34d399;
   color-scheme: dark;
   font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.45;
   color: var(--text);
   background: var(--bg);
@@ -27,7 +27,7 @@ body {
 
 .shell {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 360px 1fr;
   height: 100vh;
 }
 
@@ -155,7 +155,7 @@ legend {
 
 .catalogue .tier {
   margin: 10px 0 4px;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -197,7 +197,7 @@ legend {
   border-radius: 50%;
   background: var(--accent);
   color: var(--bg);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
 }
 
@@ -207,7 +207,7 @@ legend {
   border: 1px solid #7c5a12;
   border-radius: 4px;
   color: var(--accent);
-  font-size: 0.7rem;
+  font-size: 0.8rem;
 }
 
 .legend {

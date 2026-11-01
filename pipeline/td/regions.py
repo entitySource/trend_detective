@@ -20,6 +20,16 @@ BOXES: list[tuple[str, str, tuple[float, float, float, float]]] = [
     ("sea", "Southeast Asia (Strait of Malacca)", (95, -6, 120, 6)),
     ("grl", "Greenland", (-55, 60, -20, 83)),
     ("del", "Delhi region", (76.5, 28, 77.8, 29)),
+    ("sib", "Siberia", (90, 55, 140, 70)),
+    ("tib", "Tibetan Plateau", (78, 28, 100, 38)),
+    ("arl", "Aral Sea", (58, 43, 62, 47)),
+    ("cng", "Congo rainforest", (12, -5, 30, 5)),
+    ("hoa", "Horn of Africa", (38, -2, 51, 12)),
+    ("cbt", "US Corn Belt", (-98, 38, -82, 46)),
+    ("eus", "Eastern United States", (-90, 35, -70, 45)),
+    ("gbr", "Great Barrier Reef", (145, -24, 154, -10)),
+    ("bgd", "Ganges–Brahmaputra Delta", (88, 21, 92.5, 25)),
+    ("ant", "Antarctic Peninsula", (-70, -70, -55, -60)),
 ]
 
 

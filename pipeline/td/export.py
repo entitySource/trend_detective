@@ -68,6 +68,52 @@ def _box_mean(cube: np.ndarray, lats: np.ndarray, mask: np.ndarray) -> np.ndarra
         return np.where(den > 0, num / den, np.nan)
 
 
+def region_series(full: np.ndarray, clim: np.ndarray, lats: np.ndarray, mask: np.ndarray, vid: str) -> tuple[np.ndarray, dict]:
+    """One region's yearly series (box mean of the anomalies) and its trend stats, relative change where meaningful."""
+    series = _box_mean(full, lats, mask)
+    coslat = np.cos(np.radians(lats))[:, None]
+    cm = mask & np.isfinite(clim)
+    c = float(np.sum(np.where(cm, clim, 0) * coslat) / np.sum(cm * coslat)) if cm.any() else float("nan")
+    return series, series_stats(series, YEARS, climatology=c if vid in RELATIVE and np.isfinite(c) and c > 0 else None)
+
+
+def ranking_row(f: dict[str, np.ndarray], mask: np.ndarray, vid: str, stats: dict) -> dict | None:
+    """Share of a region's cells with a significant (FDR) rise or fall; None if the region has no data."""
+    sig = mask & np.isfinite(f["q"]) & (f["q"] <= ALPHA)
+    total = int((mask & np.isfinite(f["slope"])).sum())
+    if not total:
+        return None
+    return {
+        "variable": vid,
+        "pctRising": 100 * float((sig & (f["slope"] > 0)).sum()) / total,
+        "pctFalling": 100 * float((sig & (f["slope"] < 0)).sum()) / total,
+        "mixed": False,
+        "regionalSnr": stats["snr"],
+    }
+
+
+def yearly_anomalies(vid: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Scaled monthly data's anomalies plus the year/month axes and the climatology, for one variable."""
+    d = np.load(INTERIM / f"{vid}.npz")
+    data = d["data"].astype(float) * DISPLAY.get(vid, {}).get("scale", 1.0)
+    years = np.array([int(m[:4]) for m in d["months"]])
+    months = np.array([int(m[5:7]) for m in d["months"]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        clim = np.nanmean(data, axis=0)
+    return monthly_anomalies(data, months), years, months, clim
+
+
+def season_cube(anoms: np.ndarray, years: np.ndarray, months: np.ndarray, season: str) -> np.ndarray:
+    """Seasonal (or annual) means padded to the full YEARS axis, so every season lines up (DJF has no 2003)."""
+    yrs, annual = aggregate(anoms, years, months, season)
+    full = np.full((YEARS.size,) + annual.shape[1:], np.nan)
+    for i, y in enumerate(yrs):
+        if YEARS[0] <= y <= YEARS[-1]:
+            full[y - YEARS[0]] = annual[i]
+    return full
+
+
 def sig_layers(f: dict[str, np.ndarray], lats: np.ndarray, palette: str, out: Path, raw_path: str, grid: dict) -> dict:
     """Uncorrected layer (p <= ALPHA, no FDR) and the % of mapped area significant with and without FDR."""
     _png(out / raw_path, classes(f["slope"], f["p"], ALPHA, palette), grid)
@@ -80,28 +126,15 @@ def sig_layers(f: dict[str, np.ndarray], lats: np.ndarray, palette: str, out: Pa
 def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n_jobs: int = -1) -> dict:
     """Trend layers, grids and regional series for one variable; returns its manifest entry plus contrast/ranking rows."""
     lats, lons = lat_lon(grid)
-    d = np.load(INTERIM / f"{vid}.npz")
     disp = {**DISPLAY.get(vid, {}), **{k: v[k] for k in ("palette", "trend_units") if k in v}}
-    scale = DISPLAY.get(vid, {}).get("scale", 1.0)
-    data = d["data"].astype(float) * scale
-    years = np.array([int(m[:4]) for m in d["months"]])
-    months = np.array([int(m[5:7]) for m in d["months"]])
-    anoms = monthly_anomalies(data, months)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        clim = np.nanmean(data, axis=0)
+    anoms, years, months, clim = yearly_anomalies(vid)
 
     palette = disp.get("palette", "warm")
     layers, region_rows, contrasts, ranking = {}, {b[0]: {"id": b[0], "seasons": {}} for b in R.BOXES}, [], {}
     vmax = None
     for season in seasons:
         t0 = time.time()
-        yrs, annual = aggregate(anoms, years, months, season)
-        # Pad to the full 2003–2025 axis so every season's series lines up with YEARS (DJF has no 2003).
-        full = np.full((YEARS.size,) + annual.shape[1:], np.nan)
-        for i, y in enumerate(yrs):
-            if YEARS[0] <= y <= YEARS[-1]:
-                full[y - YEARS[0]] = annual[i]
+        full = season_cube(anoms, years, months, season)
         f = trend_field(full, YEARS, n_jobs=n_jobs)
         if vmax is None:  # one colour range per variable (from the first season), so seasons are comparable
             finite = np.abs(f["slope"][np.isfinite(f["slope"])])
@@ -115,26 +148,13 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
         layers[season]["sigArea"] = sig_layers(f, lats, palette, out, layers[season]["raw"], grid)
 
         regional = []
-        coslat = np.cos(np.radians(lats))[:, None]
         for rid, _, bbox in R.BOXES:
             m = R.box_mask(lats, lons, bbox)
-            series = _box_mean(full, lats, m)
-            cm = m & np.isfinite(clim)
-            c = float(np.sum(np.where(cm, clim, 0) * coslat) / np.sum(cm * coslat)) if cm.any() else float("nan")
-            stats = series_stats(series, YEARS, climatology=c if vid in RELATIVE and np.isfinite(c) and c > 0 else None)
+            series, stats = region_series(full, clim, lats, m, vid)
             region_rows[rid]["seasons"][season] = {"values": series.tolist(), "stats": stats}
-            sig = m & np.isfinite(f["q"]) & (f["q"] <= ALPHA)
-            total = int((m & np.isfinite(f["slope"])).sum())
-            if total:
-                ranking.setdefault(rid, {}).setdefault(season, []).append(
-                    {
-                        "variable": vid,
-                        "pctRising": 100 * float((sig & (f["slope"] > 0)).sum()) / total,
-                        "pctFalling": 100 * float((sig & (f["slope"] < 0)).sum()) / total,
-                        "mixed": False,
-                        "regionalSnr": stats["snr"],
-                    }
-                )
+            row = ranking_row(f, m, vid, stats)
+            if row:
+                ranking.setdefault(rid, {}).setdefault(season, []).append(row)
             if rid != "glb" and stats["p"] is not None and stats["p"] < 0.05:
                 regional.append((rid, stats))
         rising = [r for r in regional if r[1]["slopePerDecade"] > 0]

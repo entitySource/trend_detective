@@ -50,6 +50,7 @@ python -m venv .venv
 .venv/Scripts/python scripts/make_mock.py
 .venv/Scripts/python scripts/run_all.py              # everything: fetch (resumable) + export real data
 .venv/Scripts/python scripts/run_all.py --skip-fetch # recompute from data/interim only (~90 min)
+.venv/Scripts/python scripts/add_regions.py          # after adding a site to td/regions.py: regional series only (minutes)
 ```
 
 ```bash

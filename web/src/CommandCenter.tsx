@@ -120,11 +120,14 @@ const STAGES = [
 ]
 
 const DETECTIVE_STEPS = [
-  { n: 1, title: 'Pick a clue', text: 'Choose something to measure: heat, water, haze or plants.' },
-  { n: 2, title: 'Pick a place', text: 'Click a glowing site. Most trends are regional, not global.' },
-  { n: 3, title: 'Look at the evidence', text: 'See one dot per year from 2003 to 2025.' },
-  { n: 4, title: 'Test it', text: 'Is the change real, or just natural ups and downs?' },
+  { n: 1, title: 'Choose a clue', text: 'On the left, pick something satellites measure, like heat, rain, haze or how green plants are.' },
+  { n: 2, title: 'Choose a place', text: 'Click a glowing dot on the globe or a name in the list. Each one is a region with a story.' },
+  { n: 3, title: 'Look at the evidence', text: 'You will see one dot for every year from 2003 to 2025. Does it look like it goes up or down?' },
+  { n: 4, title: 'Test it', text: 'Press “Test it”. The app checks if the change is real, or could just be natural ups and downs.' },
 ]
+
+// Friendly names for the place types used in the filters and site list.
+const PLACE_LABEL: Record<string, string> = Object.fromEntries(PLACES.map((p) => [p.id, p.label]))
 
 const EXPLAIN = {
   chart: 'Each dot is one year: how far that year was above (up) or below (down) this place’s usual level. The bright line is the trend; the dashed lines show how uncertain its steepness is.',
@@ -170,7 +173,7 @@ function Info({ text }: { text: string }) {
         <HelpCircle className="h-3 w-3" />
       </button>
       {open && (
-        <span role="tooltip" className="cc-glass absolute top-5 right-0 z-30 w-60 rounded-lg p-2.5 text-left text-[11px] leading-relaxed font-normal tracking-normal text-slate-200 normal-case">
+        <span role="tooltip" className="cc-glass absolute top-5 right-0 z-30 w-60 rounded-lg p-2.5 text-left text-[13px] leading-relaxed font-normal tracking-normal text-slate-200 normal-case">
           {text}
         </span>
       )}
@@ -202,7 +205,7 @@ function Ring({ value, label, sub, color, info }: { value: number; label: string
         </svg>
         <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-100">{label}</span>
       </div>
-      <div className="text-center text-[10px] tracking-widest text-slate-400 uppercase">
+      <div className="text-center text-xs tracking-widest text-slate-400 uppercase">
         {sub}
         <Info text={info} />
       </div>
@@ -214,7 +217,7 @@ function Bar({ label, value, max, color, text, info }: { label: string; value: n
   const pct = Math.max(2, Math.min(100, (Math.abs(value) / max) * 100))
   return (
     <div>
-      <div className="mb-1 flex justify-between gap-2 text-[11px] tracking-wider text-slate-400 uppercase">
+      <div className="mb-1 flex justify-between gap-2 text-[13px] tracking-wider text-slate-400 uppercase">
         <span>
           {label}
           <Info text={info} />
@@ -644,7 +647,7 @@ function Globe({ sites, colors, selected, compare, focus, spinning, theme, onPic
         </button>
       </div>
       {pointer && (
-        <div className="cc-glass pointer-events-none absolute right-3 bottom-14 rounded-md px-2 py-1 font-mono text-[10px] text-cyan-200">
+        <div className="cc-glass pointer-events-none absolute right-3 bottom-14 rounded-md px-2 py-1 font-mono text-xs text-cyan-200">
           <Crosshair className="mr-1 inline h-3 w-3" />
           {fmtLat(pointer[0])} {fmtLon(pointer[1])}
         </div>
@@ -872,25 +875,25 @@ export default function CommandCenter() {
         <div className="flex items-center gap-2">
           <Radar className="h-5 w-5 text-cyan-300" />
           <h1 className="cc-glow text-sm font-bold tracking-[0.25em] text-cyan-200">TREND DETECTIVE</h1>
-          <span className="hidden text-[10px] tracking-[0.2em] text-slate-500 sm:inline">// EARTH CHANGE COMMAND</span>
+          <span className="hidden text-xs tracking-[0.2em] text-slate-500 sm:inline">// EARTH CHANGE COMMAND</span>
         </div>
-        <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] text-slate-400 max-md:hidden">
+        <div className="flex flex-wrap items-center gap-4 font-mono text-[13px] text-slate-400 max-md:hidden">
           <span className="flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5 text-cyan-400" />
             {now.toISOString().slice(0, 19).replace('T', ' ')} UTC
           </span>
           <span className="flex items-center gap-1.5">
             <Database className="h-3.5 w-3.5 text-cyan-400" />
-            WINDOW {manifest.window.start.slice(0, 4)}–{manifest.window.end.slice(0, 4)}
+            DATA {manifest.window.start.slice(0, 4)}–{manifest.window.end.slice(0, 4)}
           </span>
           <span className="flex items-center gap-1.5">
             <Activity className="h-3.5 w-3.5 text-emerald-400" />
-            {manifest.variables.length} ACTIVE · {manifest.catalogue?.length ?? 0} CATALOGUED
+            {manifest.variables.length} CLUES · {SITES.length} PLACES
           </span>
-          <span className="flex items-center gap-1.5">
+          <a href="#/checks" className="flex items-center gap-1.5 hover:text-cyan-200">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-            VALIDATION {passed}/{checks.length}
-          </span>
+            {passed} OF {checks.length} CHECKS PASSED
+          </a>
           <span className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${manifest.mock ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
             <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${manifest.mock ? 'bg-amber-400' : 'bg-emerald-400'}`} />
             {manifest.mock ? 'MOCK FEED' : 'NASA DATA'}
@@ -922,109 +925,141 @@ export default function CommandCenter() {
 
       <main className="relative z-10 flex min-h-0 flex-1 gap-3 p-3">
         {/* Left rail: variable, filters, sites, demos */}
-        <aside className="cc-glass flex w-72 shrink-0 flex-col gap-4 overflow-y-auto rounded-xl p-4 max-lg:hidden">
+        <aside className="cc-glass flex w-80 shrink-0 flex-col gap-6 overflow-y-auto rounded-xl p-5 max-lg:hidden 2xl:w-96">
           <section>
-            <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">1 · PICK A CLUE</h2>
-            <div className="grid grid-cols-2 gap-1.5">
-              {manifest.variables.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => {
-                    setVarId(v.id)
-                    setStage('idle')
-                  }}
-                  aria-pressed={v.id === varId}
-                  className={`rounded-md border px-2 py-1.5 text-left text-xs transition ${v.id === varId ? 'border-cyan-300/70 bg-cyan-400/15 text-cyan-100 shadow-[0_0_12px_rgba(34,211,238,0.25)]' : 'border-slate-700/70 text-slate-400 hover:border-cyan-400/40 hover:text-slate-200'}`}
-                >
-                  {DEFINITIONS[v.id]?.short ?? v.label}
-                  {v.caution && <AlertTriangle className="ml-1 inline h-3 w-3 text-amber-400" aria-label="caution" />}
-                </button>
-              ))}
+            <h2 className="text-xs font-semibold tracking-[0.15em] text-cyan-400">STEP 1 · CHOOSE A CLUE</h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-400">A clue is something NASA satellites measure every month. Pick one to see where on Earth it is changing.</p>
+            <div className="mt-3 space-y-3">
+              {INTERESTS.map((g) => {
+                const vars = manifest.variables.filter((v) => (g.vars as readonly string[]).includes(v.id))
+                if (!vars.length) return null
+                return (
+                  <div key={g.id}>
+                    <p className="mb-1.5 text-xs font-medium text-slate-500">{g.label}</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {vars.map((v) => (
+                        <button
+                          key={v.id}
+                          onClick={() => {
+                            setVarId(v.id)
+                            setStage('idle')
+                          }}
+                          aria-pressed={v.id === varId}
+                          className={`rounded-lg border px-2.5 py-2 text-left text-sm transition ${v.id === varId ? 'border-cyan-300/70 bg-cyan-400/15 text-cyan-50 shadow-[0_0_12px_rgba(34,211,238,0.25)]' : 'border-slate-700/70 text-slate-300 hover:border-cyan-400/40 hover:text-slate-100'}`}
+                        >
+                          {DEFINITIONS[v.id]?.short ?? v.label}
+                          {v.caution && <AlertTriangle className="ml-1 inline h-3.5 w-3.5 text-amber-400" aria-label="read the caution" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
-              <HelpCircle className="mr-1 inline h-3 w-3 text-cyan-400" />
-              {def?.plain ?? variable.label}
-              {def && <span className="mt-1 block text-[10px] tracking-wider text-slate-500">SOURCE · {def.source}</span>}
-            </p>
-            {variable.caution && <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-200">{variable.caution}</p>}
+            <div className="mt-3 rounded-lg border border-cyan-400/20 bg-slate-950/40 p-3">
+              <p className="text-sm font-semibold text-cyan-100">
+                <HelpCircle className="mr-1.5 inline h-4 w-4 text-cyan-400" />
+                What is “{short.toLowerCase()}”?
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-300">{def?.plain ?? variable.label}</p>
+              {def && <p className="mt-1.5 text-xs text-slate-500">Measured by: {def.source}</p>}
+            </div>
+            {variable.caution && (
+              <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm leading-relaxed text-amber-100">
+                <AlertTriangle className="mr-1.5 inline h-4 w-4 text-amber-400" />
+                <strong className="font-semibold">Be careful:</strong> {variable.caution}
+              </p>
+            )}
           </section>
 
           <section>
-            <h2 className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">
-              <Filter className="h-3 w-3" /> 2 · PICK A PLACE
+            <h2 className="flex items-center gap-1.5 text-xs font-semibold tracking-[0.15em] text-cyan-400">
+              <Filter className="h-3.5 w-3.5" /> STEP 2 · CHOOSE A PLACE
             </h2>
-            <label className="flex items-center gap-2 rounded-md border border-slate-700/70 bg-slate-900/50 px-2 py-1.5">
-              <Search className="h-3.5 w-3.5 text-slate-500" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search sites" aria-label="Search sites" className="w-full bg-transparent text-xs outline-none placeholder:text-slate-600" />
+            <p className="mt-1 text-sm leading-relaxed text-slate-400">Click a place to open its case file, or click a glowing dot on the globe.</p>
+            <label className="mt-3 flex items-center gap-2 rounded-lg border border-slate-700/70 bg-slate-900/50 px-3 py-2">
+              <Search className="h-4 w-4 text-slate-500" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search, e.g. Amazon or Delhi"
+                aria-label="Search places"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-600"
+              />
             </label>
-            <p className="mt-2 text-[10px] tracking-wider text-slate-500">TYPE OF PLACE</p>
-            <div className="mt-1 flex flex-wrap gap-1">
+            <p className="mt-3 text-xs font-medium text-slate-500">What kind of place?</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
               {(['all', ...new Set(SITES.map((s) => s.biome))] as const).map((b) => (
                 <button
                   key={b}
                   onClick={() => setBiome(b)}
                   aria-pressed={biome === b}
-                  className={`rounded-full border px-2 py-0.5 text-[10px] transition ${biome === b ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-200' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition ${biome === b ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-100' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
                 >
-                  {b}
+                  {b === 'all' ? 'Everywhere' : (PLACE_LABEL[b] ?? b)}
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[10px] tracking-wider text-slate-500">VERDICT FOR {short.toUpperCase()}</p>
-            <div className="mt-1 flex flex-wrap gap-1">
+            <p className="mt-3 text-xs font-medium text-slate-500">Show places where {short.toLowerCase()} is…</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
               {(['all', 'rising', 'falling', 'noise'] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setVerdictFilter(v)}
                   aria-pressed={verdictFilter === v}
-                  className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${verdictFilter === v ? 'border-cyan-300/60 bg-cyan-400/15 text-cyan-100' : 'border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${verdictFilter === v ? 'border-cyan-300/60 bg-cyan-400/15 text-cyan-50' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
                 >
-                  {v !== 'all' && <span className="h-1.5 w-1.5 rounded-full" style={{ background: VERDICT_COLOR[v] }} />}
-                  {v === 'all' ? 'all' : VERDICT_TEXT[v].toLowerCase()}
+                  {v !== 'all' && <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[v] }} />}
+                  {v === 'all' ? 'Anything' : v === 'noise' ? 'Not proven yet' : `Really ${v}`}
                 </button>
               ))}
             </div>
           </section>
 
           <section>
-            <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">SITES · {visible.length}</h2>
-            <ul className="space-y-1">
+            <h2 className="text-xs font-semibold tracking-[0.15em] text-cyan-400">PLACES TO INVESTIGATE · {visible.length}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              The dot shows what our test found for {short.toLowerCase()}: <span style={{ color: VERDICT_COLOR.rising }}>rising</span>,{' '}
+              <span style={{ color: VERDICT_COLOR.falling }}>falling</span> or <span className="text-slate-300">not proven</span> (could just be natural ups and downs).
+            </p>
+            <ul className="mt-2 space-y-1">
               {visible.map((s) => {
                 const v = verdictOf(statsFor(varId, s.id))
                 return (
                   <li key={s.id}>
                     <button
                       onClick={() => select(s.id)}
-                      className={`group flex w-full items-center gap-2 rounded-md border px-2 py-2 text-left transition ${s.id === siteId ? 'border-cyan-300/60 bg-cyan-400/10' : 'border-transparent hover:border-cyan-400/25 hover:bg-cyan-400/5'}`}
+                      className={`group flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition ${s.id === siteId ? 'border-cyan-300/60 bg-cyan-400/10' : 'border-transparent hover:border-cyan-400/25 hover:bg-cyan-400/5'}`}
                     >
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 8px ${VERDICT_COLOR[v]}` }} />
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 8px ${VERDICT_COLOR[v]}` }} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs text-slate-200">{s.name}</span>
-                        <span className="block text-[10px] text-slate-500">
-                          {s.biome} · {VERDICT_TEXT[v]}
+                        <span className="block truncate text-sm text-slate-100">{s.name}</span>
+                        <span className="block text-xs text-slate-500">
+                          {PLACE_LABEL[s.biome] ?? s.biome} · {VERDICT_TEXT[v]}
                         </span>
                       </span>
-                      <ChevronRight className="h-3.5 w-3.5 text-slate-600 transition group-hover:translate-x-0.5 group-hover:text-cyan-300" />
+                      <ChevronRight className="h-4 w-4 text-slate-600 transition group-hover:translate-x-0.5 group-hover:text-cyan-300" />
                     </button>
                   </li>
                 )
               })}
-              {!visible.length && <li className="text-[11px] text-slate-500">No sites match. Try “all”.</li>}
+              {!visible.length && <li className="text-sm text-slate-500">No places match. Try “Everywhere” and “Anything”.</li>}
             </ul>
           </section>
 
           <section>
-            <h2 className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">DEMO CASES</h2>
+            <h2 className="text-xs font-semibold tracking-[0.15em] text-cyan-400">GUIDED STORIES</h2>
+            <p className="mt-1 mb-2 text-xs leading-relaxed text-slate-500">New here? Press play and the app walks you through a real case, step by step.</p>
             {DEMOS.map((d, i) => (
               <button
                 key={d.title}
                 onClick={() => playDemo(i, 0)}
-                className="mb-1.5 flex w-full items-start gap-2 rounded-md border border-slate-700/70 p-2 text-left transition hover:border-emerald-400/50 hover:bg-emerald-400/5"
+                className="mb-2 flex w-full items-start gap-2.5 rounded-lg border border-slate-700/70 p-3 text-left transition hover:border-emerald-400/50 hover:bg-emerald-400/5"
               >
-                <Play className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                <Play className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                 <span>
-                  <span className="block text-xs text-slate-200">{d.title}</span>
-                  <span className="block text-[10px] text-slate-500">{d.blurb}</span>
+                  <span className="block text-sm text-slate-100">{d.title}</span>
+                  <span className="block text-xs leading-relaxed text-slate-400">{d.blurb}</span>
                 </span>
               </button>
             ))}
@@ -1038,7 +1073,7 @@ export default function CommandCenter() {
           {/* Hover card: headline stats before opening the case file */}
           {hoverSite && hoverCard && (
             <div className="cc-glass cc-rise pointer-events-none absolute z-20 w-56 rounded-lg p-3" style={{ left: hoverCard.x + 18, top: hoverCard.y + 18 }}>
-              <p className="text-[10px] tracking-[0.2em] text-cyan-400">{hoverSite.biome.toUpperCase()}</p>
+              <p className="text-xs tracking-[0.2em] text-cyan-400">{hoverSite.biome.toUpperCase()}</p>
               <p className="text-sm font-semibold text-slate-100">{hoverSite.name}</p>
               <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-300">
                 <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[verdictOf(hoverStats)] }} />
@@ -1050,14 +1085,14 @@ export default function CommandCenter() {
                   </span>
                 )}
               </p>
-              <p className="mt-1 text-[11px] text-slate-400">{hoverSite.story.takeaway.split('. ')[0]}.</p>
-              <p className="mt-1.5 text-[10px] text-cyan-300">Click to open the case file</p>
+              <p className="mt-1 text-[13px] text-slate-400">{hoverSite.story.takeaway.split('. ')[0]}.</p>
+              <p className="mt-1.5 text-xs text-cyan-300">Click to open the case file</p>
             </div>
           )}
 
           {/* Time machine: re-test on the data up to a chosen year */}
           <div className="cc-glass absolute bottom-3 left-1/2 w-[min(420px,calc(100%-120px))] -translate-x-1/2 rounded-lg px-3 py-2 max-lg:bottom-14 max-lg:w-[calc(100%-24px)]">
-            <div className="flex items-center justify-between text-[10px] tracking-wider text-slate-400">
+            <div className="flex items-center justify-between text-xs tracking-wider text-slate-400">
               <span>
                 TIME MACHINE · DATA UP TO <span className="font-mono text-cyan-200">{uptoYear}</span>
                 <Info text={EXPLAIN.timeline} />
@@ -1079,14 +1114,14 @@ export default function CommandCenter() {
             />
           </div>
 
-          <div className="cc-glass absolute top-3 left-3 flex flex-col gap-1 rounded-lg px-3 py-2 text-[10px] tracking-wider text-slate-400 max-xl:hidden">
+          <div className="cc-glass absolute top-3 left-3 flex flex-col gap-1 rounded-lg px-3 py-2 text-xs tracking-wider text-slate-400 max-xl:hidden">
             {(['rising', 'falling', 'noise'] as const).map((v) => (
               <span key={v} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 6px ${VERDICT_COLOR[v]}` }} />
                 {VERDICT_TEXT[v].toUpperCase()}
               </span>
             ))}
-            <span className="text-slate-500">REAL = UNDER 1-IN-20 LUCK</span>
+            <span className="text-slate-500">REAL = UNDER 1-IN-20 CHANCE OF LUCK</span>
           </div>
           <button
             onClick={() => setSpinning((s) => !s)}
@@ -1097,36 +1132,39 @@ export default function CommandCenter() {
           </button>
 
           {!site && !demo && (
-            <div className="cc-glass cc-rise absolute top-3 right-3 w-72 rounded-xl p-4 max-lg:hidden">
-              <p className="text-[10px] font-semibold tracking-[0.2em] text-cyan-400">YOUR MISSION</p>
-              <p className="mt-1 text-sm text-slate-100">Is {short.toLowerCase()} really changing, and where?</p>
-              <ol className="mt-3 space-y-2">
+            <div className="cc-glass cc-rise absolute top-3 right-3 max-h-[calc(100%-5.5rem)] w-80 overflow-y-auto rounded-xl p-5 max-lg:hidden 2xl:w-96">
+              <p className="text-xs font-semibold tracking-[0.15em] text-cyan-400">YOUR MISSION</p>
+              <p className="mt-1 text-lg leading-snug font-semibold text-slate-50">Is {short.toLowerCase()} really changing, and where?</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-400">Nature goes up and down all the time. Your job is to find changes that are real, not just luck.</p>
+              <ol className="mt-4 space-y-3">
                 {DETECTIVE_STEPS.map((d) => (
-                  <li key={d.n} className="flex gap-2.5">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-cyan-400/50 font-mono text-[10px] text-cyan-200">{d.n}</span>
+                  <li key={d.n} className="flex gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-cyan-400/50 font-mono text-sm text-cyan-200">{d.n}</span>
                     <span>
-                      <span className="block text-xs font-semibold text-slate-100">{d.title}</span>
-                      <span className="block text-[11px] text-slate-400">{d.text}</span>
+                      <span className="block text-sm font-semibold text-slate-100">{d.title}</span>
+                      <span className="block text-sm leading-relaxed text-slate-400">{d.text}</span>
                     </span>
                   </li>
                 ))}
               </ol>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <p className="mt-4 text-sm text-slate-300">
+                So far, for {short.toLowerCase()}, out of {SITES.length} places:
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                 {(['rising', 'falling', 'noise'] as const).map((v) => (
-                  <div key={v} className="rounded-md border border-slate-700/60 bg-slate-950/40 py-1.5">
-                    <div className="text-base font-semibold" style={{ color: VERDICT_COLOR[v] }}>
+                  <div key={v} className="rounded-lg border border-slate-700/60 bg-slate-950/40 py-2">
+                    <div className="text-2xl font-semibold" style={{ color: VERDICT_COLOR[v] }}>
                       {SITES.filter((s) => verdictOf(statsFor(varId, s.id)) === v).length}
                     </div>
-                    <div className="text-[9px] tracking-wider text-slate-500 uppercase">{VERDICT_TEXT[v]}</div>
+                    <div className="text-xs text-slate-400">{v === 'noise' ? 'Not proven yet' : `Really ${v}`}</div>
                   </div>
                 ))}
               </div>
-              <p className="mt-1 text-center text-[10px] text-slate-500">sites, for {short.toLowerCase()}</p>
               <button
                 onClick={() => playDemo(0, 0)}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/20"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
               >
-                <Play className="h-3.5 w-3.5" /> New here? Watch “{DEMOS[0].title}”
+                <Play className="h-4 w-4" /> New here? Watch “{DEMOS[0].title}”
               </button>
             </div>
           )}
@@ -1166,13 +1204,13 @@ export default function CommandCenter() {
         {site && (
           <aside
             key={site.id + varId}
-            className="cc-glass cc-slide absolute top-3 right-3 bottom-3 z-20 flex w-[min(400px,calc(100%-24px))] flex-col overflow-y-auto rounded-xl p-4 lg:static lg:w-[400px] lg:shrink-0"
+            className="cc-glass cc-slide absolute top-3 right-3 bottom-3 z-20 flex w-[min(440px,calc(100%-24px))] flex-col overflow-y-auto rounded-xl p-4 lg:static lg:w-[420px] 2xl:w-[460px] lg:shrink-0"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-[10px] tracking-[0.2em] text-cyan-400">CASE FILE · {site.biome.toUpperCase()}</p>
+                <p className="text-xs tracking-[0.2em] text-cyan-400">CASE FILE · {site.biome.toUpperCase()}</p>
                 <h2 className="cc-glow mt-0.5 text-lg leading-snug font-semibold text-cyan-50">{site.story.headline}</h2>
-                <p className="mt-0.5 font-mono text-[11px] text-slate-500">
+                <p className="mt-0.5 font-mono text-[13px] text-slate-500">
                   <Crosshair className="mr-1 inline h-3 w-3" />
                   {site.name} · {fmtLat(site.lat)} {fmtLon(site.lon)}
                 </p>
@@ -1195,11 +1233,11 @@ export default function CommandCenter() {
               </div>
             </div>
 
-            <p className="mt-3 text-sm leading-relaxed text-slate-200">{site.story.takeaway}</p>
+            <p className="mt-3 text-[15px] leading-relaxed text-slate-200">{site.story.takeaway}</p>
 
             <details className="mt-3 rounded-lg border border-cyan-400/15 bg-slate-950/30 p-3">
-              <summary className="cursor-pointer text-[10px] font-semibold tracking-[0.2em] text-cyan-400 select-none">BACKGROUND FILE · WHAT SCIENTISTS KNOW</summary>
-              <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-300">
+              <summary className="cursor-pointer text-xs font-semibold tracking-[0.2em] text-cyan-400 select-none">BACKGROUND FILE · WHAT SCIENTISTS KNOW</summary>
+              <ul className="mt-2 space-y-2 text-sm leading-relaxed text-slate-300">
                 {site.story.facts.map((f) => (
                   <li key={f} className="flex gap-2">
                     <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-cyan-400" />
@@ -1210,11 +1248,11 @@ export default function CommandCenter() {
             </details>
 
             <div className="mt-3 rounded-lg border border-emerald-400/25 bg-emerald-400/5 p-3">
-              <p className="text-[10px] font-semibold tracking-[0.2em] text-emerald-300">WHY SHOULD YOU CARE?</p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-300">{site.story.why}</p>
+              <p className="text-xs font-semibold tracking-[0.2em] text-emerald-300">WHY SHOULD YOU CARE?</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-300">{site.story.why}</p>
             </div>
 
-            <label className="mt-4 flex items-center gap-2 text-[11px] text-slate-400">
+            <label className="mt-4 flex items-center gap-2 text-[13px] text-slate-400">
               <GitCompare className="h-3.5 w-3.5 text-amber-300" />
               Compare with
               <select
@@ -1235,7 +1273,7 @@ export default function CommandCenter() {
             {cur && curStats ? (
               <>
                 <div className="mt-3 rounded-lg border border-cyan-400/15 bg-slate-950/40 p-3 pb-4">
-                  <div className="mb-1 flex flex-wrap justify-between gap-1 text-[10px] tracking-wider text-slate-400">
+                  <div className="mb-1 flex flex-wrap justify-between gap-1 text-xs tracking-wider text-slate-400">
                     <span>
                       3 · THE EVIDENCE: {short.toUpperCase()} EACH YEAR VS. NORMAL
                       <Info text={EXPLAIN.chart} />
@@ -1255,7 +1293,7 @@ export default function CommandCenter() {
                       ...(cmp && cmpStats && cmpSite ? [{ values: cmp.values, stats: cmpStats, color: COMPARE_COLOR, label: cmpSite.id }] : []),
                     ]}
                   />
-                  <p className="mt-3 text-[10px] text-slate-500">Dots: one per year · Bright line: the trend · Dashed: how steep it could plausibly be</p>
+                  <p className="mt-3 text-xs text-slate-500">Dots: one per year · Bright line: the trend · Dashed: how steep it could plausibly be</p>
                 </div>
 
                 {twist && (
@@ -1264,7 +1302,7 @@ export default function CommandCenter() {
                       PLOT TWIST: THE TREND CHANGED DIRECTION AROUND {twist.year}
                       <Info text="One straight line over the whole record can hide a rise followed by a fall. Here two lines, split at the turning year, fit much better than one. The split year is found by searching, so treat these p-values as a rough guide." />
                     </p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 font-mono text-[11px]">
+                    <div className="mt-2 grid grid-cols-2 gap-2 font-mono text-[13px]">
                       {[
                         { label: `${years[0]}–${twist.year}`, t: twist.before },
                         { label: `${twist.year + 1}–${uptoYear}`, t: twist.after },
@@ -1279,7 +1317,7 @@ export default function CommandCenter() {
                         </div>
                       ))}
                     </div>
-                    <p className="mt-2 text-[11px] text-slate-300">
+                    <p className="mt-2 text-[13px] text-slate-300">
                       This is why the whole-record verdict can say “not proven” even when the change is obvious: in a single straight line, the rise and the fall cancel out.
                     </p>
                   </div>
@@ -1296,14 +1334,14 @@ export default function CommandCenter() {
                           {s.name}
                         </p>
                         <p className="mt-0.5 text-sm text-slate-100">{VERDICT_TEXT[verdictOf(st)]}</p>
-                        <p className="font-mono text-[11px] text-slate-400">
+                        <p className="font-mono text-[13px] text-slate-400">
                           {st.slopePerDecade !== null && st.slopePerDecade > 0 ? '+' : ''}
                           {fmt(st.slopePerDecade, 2)} per 10 yr
                         </p>
-                        <p className="font-mono text-[11px] text-slate-500">p {fmtP(st.p)}</p>
+                        <p className="font-mono text-[13px] text-slate-500">p {fmtP(st.p)}</p>
                       </div>
                     ))}
-                    <p className="col-span-2 text-[11px] text-slate-400">
+                    <p className="col-span-2 text-[13px] text-slate-400">
                       {verdictOf(curStats) === verdictOf(cmpStats)
                         ? `Same verdict in both places: ${VERDICT_TEXT[verdictOf(curStats)].toLowerCase()}.`
                         : `Different stories: ${site.name} is ${VERDICT_TEXT[verdictOf(curStats)].toLowerCase()}, ${cmpSite.name} is ${VERDICT_TEXT[verdictOf(cmpStats)].toLowerCase()}. Same satellites, same years.`}
@@ -1321,7 +1359,7 @@ export default function CommandCenter() {
                 </button>
 
                 {stage !== 'idle' && (
-                  <ol className="mt-3 space-y-1 font-mono text-[11px]" aria-live="polite">
+                  <ol className="mt-3 space-y-1 font-mono text-[13px]" aria-live="polite">
                     {STAGES.map((s, i) => (
                       <li key={s} className={`flex items-center gap-2 transition ${i < step ? 'text-emerald-300' : i === step && stage === 'running' ? 'text-cyan-200' : 'text-slate-600'}`}>
                         {i < step ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : i === step && stage === 'running' ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <span className="h-3 w-3 shrink-0" />}
@@ -1339,13 +1377,13 @@ export default function CommandCenter() {
                         <p className="text-sm font-semibold text-slate-100">
                           {verdict === 'noise' ? 'Case not proven: this could just be natural ups and downs' : `Case closed: ${short.toLowerCase()} here is really ${verdict}`}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-400">
+                        <p className="mt-1 text-sm leading-relaxed text-slate-300">
                           {verdict === 'noise'
                             ? `If nothing were really changing, a pattern like this would still turn up more than 1 time in 20 (p ${fmtP(curStats.p)}). Not enough evidence yet.`
                             : `If nothing were really changing, a trend this strong would turn up less than 1 time in 20 (p ${fmtP(curStats.p)}). From ${years[0]} to ${uptoYear} it ${verdict === 'rising' ? 'went up' : 'went down'} by about ${fmt(Math.abs(curStats.totalChange ?? 0), 2)}${curStats.relChange != null ? ` (${Math.abs(100 * curStats.relChange).toFixed(0)}%)` : ''}.`}
                         </p>
                         {truncated && (
-                          <p className="mt-1 text-[11px] text-amber-200">
+                          <p className="mt-1 text-[13px] text-amber-200">
                             Time machine on: a quick re-test on {curStats.n} years, without the correction for year-to-year memory, so treat it as a rough guide.
                           </p>
                         )}
@@ -1385,7 +1423,7 @@ export default function CommandCenter() {
                         text={`${fmt(curStats.totalChange)}${curStats.relChange != null ? ` (${(100 * curStats.relChange).toFixed(0)}%)` : ''}`}
                       />
                     </div>
-                    <p className="text-[10px] leading-relaxed text-slate-500">
+                    <p className="text-xs leading-relaxed text-slate-500">
                       For teachers: Mann-Kendall trend test with a correction for year-to-year memory (autocorrelation), Sen’s slope with a 95% interval, on regional yearly averages. The full map
                       controls false discoveries across cells (FDR q ≤ {manifest.fdrAlpha}).
                     </p>
@@ -1400,7 +1438,7 @@ export default function CommandCenter() {
       </main>
 
       {/* Validation ticker */}
-      <footer className="relative z-10 mx-3 mb-3 flex items-center gap-4 overflow-x-auto rounded-lg border border-cyan-400/10 bg-slate-950/50 px-3 py-1.5 font-mono text-[10px] whitespace-nowrap text-slate-500">
+      <footer className="relative z-10 mx-3 mb-3 flex items-center gap-4 overflow-x-auto rounded-lg border border-cyan-400/10 bg-slate-950/50 px-3 py-1.5 font-mono text-xs whitespace-nowrap text-slate-500">
         <a href="#/checks" className="text-cyan-400 underline-offset-2 hover:underline">
           CHECKS VS PUBLISHED RECORDS ›
         </a>
@@ -1426,7 +1464,7 @@ export default function CommandCenter() {
             </div>
             <p className="mt-1 text-xs text-slate-400">Answer two questions and we’ll suggest where a trend might be hiding, based on published research.</p>
 
-            <h3 className="mt-4 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">1 · WHAT INTERESTS YOU?</h3>
+            <h3 className="mt-4 text-xs font-semibold tracking-[0.2em] text-cyan-400">1 · WHAT INTERESTS YOU?</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               {INTERESTS.map((i) => (
                 <button
@@ -1440,7 +1478,7 @@ export default function CommandCenter() {
               ))}
             </div>
 
-            <h3 className="mt-4 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">2 · WHAT KIND OF PLACE?</h3>
+            <h3 className="mt-4 text-xs font-semibold tracking-[0.2em] text-cyan-400">2 · WHAT KIND OF PLACE?</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               {PLACES.map((p) => (
                 <button
@@ -1454,7 +1492,7 @@ export default function CommandCenter() {
               ))}
             </div>
 
-            <h3 className="mt-5 text-[10px] font-semibold tracking-[0.2em] text-cyan-400">LEADS · {leads.length}</h3>
+            <h3 className="mt-5 text-xs font-semibold tracking-[0.2em] text-cyan-400">LEADS · {leads.length}</h3>
             <ul className="mt-2 space-y-2">
               {leads.map((l) => {
                 const s = SITES.find((x) => x.id === l.siteId)!

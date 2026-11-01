@@ -68,7 +68,7 @@ function Page({ title, kicker, children }: { title: string; kicker: string; chil
   }, [])
   return (
     <div className="cc-grid min-h-screen text-slate-200">
-      <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 px-4 pt-4 text-xs">
+      <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 px-4 pt-4 text-sm">
         <a href="#/" className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 px-3 py-1.5 text-cyan-200 transition hover:bg-cyan-400/10">
           <ArrowLeft className="h-3.5 w-3.5" /> Globe
         </a>
@@ -80,19 +80,19 @@ function Page({ title, kicker, children }: { title: string; kicker: string; chil
           <a href="#/checks" className="rounded-lg px-2 py-1.5 text-slate-400 hover:text-cyan-200">Can you trust it?</a>
         </span>
       </nav>
-      <article className="mx-auto max-w-3xl px-4 pt-8 pb-16 text-sm leading-relaxed">
+      <article className="mx-auto max-w-3xl px-4 pt-8 pb-16 text-base leading-relaxed">
         <p className="font-mono text-[10px] tracking-[0.3em] text-cyan-400">{kicker}</p>
-        <h1 className="cc-glow mt-1 text-2xl font-semibold text-cyan-50">{title}</h1>
+        <h1 className="cc-glow mt-1 text-3xl font-semibold text-cyan-50">{title}</h1>
         {children}
       </article>
     </div>
   )
 }
 
-const H2 = ({ children }: { children: ReactNode }) => <h2 className="mt-10 text-base font-semibold text-cyan-100">{children}</h2>
+const H2 = ({ children }: { children: ReactNode }) => <h2 className="mt-10 text-xl font-semibold text-cyan-100">{children}</h2>
 const P = ({ children }: { children: ReactNode }) => <p className="mt-3 text-slate-300">{children}</p>
 const Detail = ({ children }: { children: ReactNode }) => (
-  <details className="mt-3 rounded-lg border border-slate-700/70 px-3 py-2 text-xs text-slate-400">
+  <details className="mt-3 rounded-lg border border-slate-700/70 px-3 py-2 text-sm text-slate-400">
     <summary className="cursor-pointer text-slate-300">For teachers and judges</summary>
     <div className="mt-2 space-y-2">{children}</div>
   </details>
@@ -221,7 +221,7 @@ export function MethodsPage() {
       </ul>
       {rows.length > 0 && (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-sm">
             <caption className="mb-2 text-left text-slate-400">Share of the map that looks significant (whole year)</caption>
             <thead className="font-mono text-[10px] tracking-wider text-cyan-400">
               <tr>

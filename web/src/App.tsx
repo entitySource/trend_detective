@@ -188,29 +188,29 @@ export default function App() {
         )}
 
         <fieldset>
-          <legend>Season</legend>
+          <legend>Time of year</legend>
           <div className="seg">
             {manifest.seasons.map((s) => (
               <button key={s} type="button" aria-pressed={s === season} onClick={() => setSeason(s)} title={SEASON_LABEL[s]}>
-                {s}
+                {SEASON_LABEL[s]}
               </button>
             ))}
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>Map shows</legend>
+          <legend>What the colours show</legend>
           <div className="seg">
             <button type="button" aria-pressed={kind === 'slope'} onClick={() => setKind('slope')}>
-              How much
+              How fast it changes
             </button>
             {layer?.raw && (
               <button type="button" aria-pressed={kind === 'raw'} onClick={() => setKind('raw')} title="Each cell tested on its own, no correction for testing thousands of cells">
-                Significant (raw)
+                Real? Each spot alone
               </button>
             )}
             <button type="button" aria-pressed={kind === 'class'} onClick={() => setKind('class')} title="Corrected for testing thousands of cells at once (false discovery rate)">
-              Significant (corrected)
+              Real? After the luck check
             </button>
           </div>
           {layer?.sigArea && kind !== 'slope' && (
@@ -235,15 +235,15 @@ export default function App() {
           ) : (
             <ul className="keys">
               <li>
-                <i style={{ background: variable.palette.at(-1) }} /> Significant rise
+                <i style={{ background: variable.palette.at(-1) }} /> Really rising
               </li>
               <li>
-                <i style={{ background: variable.palette[0] }} /> Significant fall
+                <i style={{ background: variable.palette[0] }} /> Really falling
               </li>
               <li>
-                <i className="ns" /> Could be year-to-year noise
+                <i className="ns" /> Not proven: could be natural ups and downs
               </li>
-              <li className="units">{kind === 'raw' ? `Significant = p ≤ ${manifest.fdrAlpha}, no correction` : `Significant = FDR q ≤ ${manifest.fdrAlpha}`}</li>
+              <li className="units">{kind === 'raw' ? `“Real” = p ≤ ${manifest.fdrAlpha}, each spot tested alone` : `“Real” = survives the false discovery rate check (q ≤ ${manifest.fdrAlpha})`}</li>
             </ul>
           )}
         </div>
@@ -257,18 +257,18 @@ export default function App() {
               <p className="big">
                 {probe.slope === null ? 'No data' : `${probe.slope > 0 ? '+' : ''}${fmt(probe.slope)} ${variable.trendUnits}`}
               </p>
-              <p className={significant ? 'verdict yes' : 'verdict'}>{probe.slope === null ? '' : significant ? 'Significant change' : 'Not distinguishable from year-to-year noise'}</p>
+              <p className={significant ? 'verdict yes' : 'verdict'}>{probe.slope === null ? '' : significant ? 'A real change, not just luck' : 'Not proven: could be natural ups and downs'}</p>
               <dl>
-                <dt>p (modified MK)</dt>
+                <dt>Chance it is luck (p)</dt>
                 <dd>{fmt(probe.p)}</dd>
-                <dt>q (FDR)</dt>
+                <dt>After the luck check (q)</dt>
                 <dd>{fmt(probe.q)}</dd>
-                <dt>Signal / noise</dt>
+                <dt>Trend vs. wobble</dt>
                 <dd>{fmt(probe.snr, 2)}</dd>
               </dl>
             </>
           ) : (
-            <p className="hint">Click the map to read the trend at any point.</p>
+            <p className="hint">Click anywhere on the map to see how fast that spot is changing, and whether the change is real.</p>
           )}
         </section>
       </aside>
