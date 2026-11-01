@@ -11,6 +11,7 @@ from td.fetch import (
     airs_to_half,
     cmg_to_half,
     coarsen_mean,
+    gistemp_to_half,
     gldas_to_half,
     grace_to_half,
     imerg_to_half,
@@ -44,6 +45,19 @@ def test_merra_bilinear_recovers_a_lat_lon_plane_and_wraps():
     np.testing.assert_allclose(out[:, 1:-1], (LATS[:, None] + 0.01 * LONS[None, 1:-1]), atol=1e-9)
     # Near the date line the value must come from both sides, not be NaN.
     assert np.isfinite(out[:, -1]).all() and np.isfinite(out[:, 0]).all()
+
+
+def test_gistemp_bilinear_recovers_a_plane_wraps_and_fills_polar_rims():
+    lat = np.arange(-89, 90, 2.0)
+    lon = np.arange(-179, 180, 2.0)
+    la, lo = np.meshgrid(lat, lon, indexing="ij")
+    out = gistemp_to_half(la + 0.0 * lo + 1.0, lat, lon)
+    assert out.shape == (360, 720) and np.isfinite(out).all()
+    inner = (LATS >= -89) & (LATS <= 89)
+    np.testing.assert_allclose(out[inner], np.broadcast_to(LATS[inner, None] + 1.0, out[inner].shape), atol=1e-9)
+    np.testing.assert_allclose(out[0], 89 + 1.0)  # 89.75°N takes the 89°N row
+    field = np.where(la > 0, np.nan, 1.0)
+    assert np.isnan(gistemp_to_half(field, lat, lon)[100]).all()  # gaps stay gaps
 
 
 def test_imerg_is_transposed_flipped_and_converted():

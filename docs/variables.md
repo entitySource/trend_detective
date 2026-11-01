@@ -9,15 +9,15 @@ Decided 26 Oct 2026 from two ECC deep-research passes. Every product below was c
 | 1 | 1 | Vegetation (NDVI) | Land | MOD13C2 (061) | China and India greening; parts of Alaska, Central Asia and Iran browning | Chen et al. 2019, *Nat. Sustain.* Fig. 1 |
 | 1 | 2 | Total water storage | Hydrology | GRACE/GRACE-FO JPL mascon RL06.3 v4 | Drying in N India, the Middle East and California; wetting in the Okavango and N Great Plains | Rodell et al. 2018, *Nature* Fig. 1 |
 | 1 | 3 | Haze (AOD) | Atmosphere | MERRA-2 M2TMNXAER `TOTEXTTAU` (5.12.4), reanalysis that assimilates MODIS AOD | Falling in Europe and N America; rising in South Asia; China reverses after about 2008 | de Meij 2012; Gupta 2022 |
-| 1 | 4 | Air temperature | Atmosphere | MERRA-2 M2TMNXSLV (5.12.4) | Warming almost everywhere; North Atlantic "warming hole" | GISTEMP v4 |
+| 1 | 4 | Air temperature | Atmosphere | GISTEMP v4 gridded (GHCNv4 + ERSSTv5, 1200 km), 2° → 0.5° | Warming almost everywhere; North Atlantic "warming hole" | GISTEMP v4 |
 | 1 | 5 | Precipitation | Hydrology | GPM IMERG M (07, ends Sep 2025) | Wet gets wetter, dry gets drier (mostly not significant) | GPCP v2.3 |
-| 2 | 6 | Land surface temperature | Land | MYD11C3 (061, Aqua) | Arctic warming vs irrigated-land cooling* | MERRA-2 T2M |
+| 2 | 6 | Land surface temperature | Land | MYD11C3 (061, Aqua) `LST_Night_CMG` | Arctic warming vs irrigated-land cooling* | MERRA-2 T2M |
 | 2 | 7 | Snow cover | Cryosphere | MOD10CM (61) | Spring snow loss vs some autumn gains* | Rutgers Snow Lab |
 | 2 | 8 | Soil moisture + ET | Hydrology | GLDAS_NOAH025_M (2.1) | Mediterranean drying vs Sahel wetting* | ESA CCI soil moisture |
 | 2 | 9 | Sea ice | Cryosphere | NSIDC-0051 (2), polar grid | Arctic loss vs Antarctic gain until 2015 | Parkinson 2019, *PNAS*; NSIDC Sea Ice Index |
 | 2 | 10 | Sea surface temperature | Ocean | MUR L4 (4.1), daily, very large | Warming vs cooler eastern Pacific and Southern Ocean | NOAA OISST |
 | 3 | 11 | NO₂ | Atmosphere | OMNO2d (003), from Oct 2004 | US and EU falling vs India rising | Krotkov et al. 2016, *ACP* |
-| 3 | 12 | Total ozone | Atmosphere | OMTO3e (003), from Oct 2004 | Antarctic recovery vs small mid-latitude decline | WMO Ozone Assessment 2022 |
+| 3 | 12 | Total ozone | Atmosphere | MERRA-2 M2TMNXSLV `TO3` (5.12.4), assimilates OMI + MLS | Antarctic recovery vs small mid-latitude decline | WMO Ozone Assessment 2022 |
 | 3 | 13 | Upper-air temperature / CO₂ | Atmosphere | AIRS3STM (7.0) | Stratosphere cooling vs troposphere warming | NOAA Mauna Loa |
 | 3 | 14 | Ocean chlorophyll | Ocean | MODISA_L3m_CHL (2022.0) | Subtropical gyres declining vs high latitudes rising | Cael et al. 2023, *Nature* |
 | 3 | 15 | Sea level | Ocean | NASA_SSH_REF_SIMPLE_GRID_V1 | Global rise vs 1993–2012 eastern Pacific fall | PSMSL tide gauges |

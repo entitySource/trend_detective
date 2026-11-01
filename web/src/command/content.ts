@@ -469,18 +469,18 @@ export const SITES: Site[] = [
 ]
 
 export const DEFINITIONS: Record<string, { short: string; plain: string; source: string }> = {
-  t2m: { short: 'Air temperature', plain: 'The temperature of the air 2 m above the ground, the temperature you would feel.', source: 'NASA MERRA-2 reanalysis' },
+  t2m: { short: 'Air temperature', plain: 'The temperature of the air near the ground, measured by thousands of weather-station thermometers on land and by ships and buoys at sea.', source: 'NASA GISTEMP v4 (thermometer record)' },
   tws: { short: 'Water storage', plain: 'All the water stored on and under land: rivers, soil, groundwater and ice, weighed from space by tiny changes in Earth’s gravity.', source: 'NASA/DLR GRACE & GRACE-FO' },
   precip: { short: 'Precipitation', plain: 'How much rain and snow falls, in millimetres per day, combined from a fleet of satellites.', source: 'NASA GPM IMERG' },
   ndvi: { short: 'Greenness', plain: 'How green and leafy the land is: near 0 is bare ground, near 1 is dense forest.', source: 'NASA MODIS Terra' },
   aod: { short: 'Haze', plain: 'How much sunlight dust, smoke and pollution particles block. 0 is crystal-clear air; above 0.5 is very hazy.', source: 'NASA MERRA-2 aerosols' },
-  lst: { short: 'Ground heat', plain: 'How hot the ground surface itself gets in the daytime, like the heat you feel off a pavement. It swings more than air temperature.', source: 'NASA MODIS Aqua' },
+  lst: { short: 'Ground heat', plain: 'How warm the ground surface stays at night (around 1:30 am), seen from space. Night readings are steadier than daytime ones and show how much heat the land keeps.', source: 'NASA MODIS Aqua, night pass' },
   snow: { short: 'Snow cover', plain: 'The share of the ground covered by snow, from 0% to 100%. Cloudy days hide the ground, so some months have gaps.', source: 'NASA MODIS Terra' },
-  soil: { short: 'Soil moisture', plain: 'How much water sits in the top 10 cm of soil, from a computer model fed with satellite and weather data.', source: 'NASA GLDAS land model' },
+  soil: { short: 'Soil moisture', plain: 'How much water sits in the top 10 cm of soil, from a computer model fed with satellite and weather data. The map only colours places where a second, independent model agrees on wetter or drier.', source: 'NASA GLDAS land model, checked against MERRA-2' },
   seaice: { short: 'Sea ice', plain: 'How much of the ocean surface is covered by floating ice, from 0% to 100%, seen by microwave satellites through clouds and polar night.', source: 'NASA/NSIDC passive microwave' },
   sst: { short: 'Ocean heat', plain: 'The temperature of the top skin of the ocean. Oceans soak up most of the extra heat from global warming.', source: 'NASA MODIS Aqua' },
   no2: { short: 'NO₂ pollution', plain: 'Nitrogen dioxide in the lower air, a gas mostly from car exhausts and power plants. A good fingerprint of burning fuel.', source: 'NASA OMI on Aura' },
-  ozone: { short: 'Ozone layer', plain: 'The total ozone above you, in Dobson units. Ozone high up blocks harmful UV rays, like Earth’s sunscreen.', source: 'NASA OMI on Aura' },
+  ozone: { short: 'Ozone layer', plain: 'The total ozone above you, in Dobson units. Ozone high up blocks harmful UV rays, like Earth’s sunscreen.', source: 'NASA MERRA-2 (OMI and MLS on Aura)' },
   airs: { short: 'Upper-air temp.', plain: 'Air temperature about 30 km up, in the stratosphere. Extra CO₂ warms the surface but cools this layer: a fingerprint of greenhouse warming.', source: 'NASA AIRS on Aqua' },
   chlor: { short: 'Ocean plankton', plain: 'Chlorophyll in sea water, a sign of tiny floating plants (phytoplankton) that feed ocean food chains.', source: 'NASA MODIS Aqua' },
   sealevel: { short: 'Sea level', plain: 'The height of the sea surface measured by radar satellites, compared with its usual level, in millimetres.', source: 'NASA sea-surface height record' },

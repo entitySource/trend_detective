@@ -14,9 +14,9 @@ const EXPLAIN: Record<string, { why: string; verdict: string }> = {
     verdict: 'Our number matches theirs to within a tenth of a percent per decade.',
   },
   gistemp: {
-    why: 'NASA’s GISTEMP record, built from thousands of thermometers, is the standard measure of global warming. Our air temperature comes from MERRA-2, a model fed with observations.',
+    why: 'NASA’s GISTEMP record, built from thousands of thermometers, is the standard measure of global warming. Our air-temperature map uses GISTEMP’s grid, reshaped to our 55 km squares, so averaging the map over the globe should give back NASA’s own number.',
     verdict:
-      'MERRA-2 warms about a quarter more slowly than GISTEMP over these 23 years, and on its own the trend does not pass our strict test. The lesson: model-based data can disagree with direct measurement, so we label air temperature as model data.',
+      'It does: our map warms at the same rate NASA publishes. We first used MERRA-2, a computer model, which warmed about a quarter more slowly and failed this check, so we switched to the thermometer record.',
   },
   'aod-signs': {
     why: 'Published studies report that haze (aerosol) fell over eastern China after clean-air rules and rose over northern India.',
@@ -272,15 +272,18 @@ export function MethodsPage() {
       <H2>5 · When the data itself can fool you</H2>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-slate-300">
         <li>
-          <strong className="text-slate-100">Satellites drift.</strong> Terra’s overpass time slowly got earlier after 2020, so land looked 1–2 °C cooler than it was. We
-          switched land temperature to the Aqua satellite, but Aqua also drifts since 2022, so treat the last year with care.
+          <strong className="text-slate-100">Satellites drift.</strong> Terra’s overpass time slowly got earlier after 2020, so land looked 1–2 °C cooler than it was, and
+          Aqua’s afternoon pass drifted after 2022 too. Ground heat now uses Aqua’s night pass: the ground cools slowly at night, so a small timing drift barely
+          matters, and its trend matches the thermometer record over land.
         </li>
         <li>
-          <strong className="text-slate-100">Models are not measurements.</strong> Air temperature (MERRA-2) and soil moisture (GLDAS) come from computer models fed with
-          observations. MERRA-2 warms more slowly than thermometer records, and two models agree on whether soil is drying on only 61% of land.
+          <strong className="text-slate-100">Models are not measurements.</strong> We first took air temperature from MERRA-2, a computer model, but it warmed a quarter
+          more slowly than thermometers, so the map now uses NASA’s thermometer record (GISTEMP). Soil moisture has no 23-year global measurement, so it still comes
+          from a model (GLDAS); two models agree on wetter or drier on only 61% of land, and the map shows only those places.
         </li>
         <li>
-          <strong className="text-slate-100">Instruments age.</strong> A fault on the OMI ozone instrument since 2007 probably exaggerates the ozone trend.
+          <strong className="text-slate-100">Instruments age.</strong> A fault on the OMI ozone instrument since 2007 made ozone seem to rise twice as fast as it does.
+          We switched to MERRA-2 ozone, which also uses a second instrument (MLS) and halves that rise, but it still rises more than published records.
         </li>
         <li>
           <strong className="text-slate-100">23 years is short.</strong> Slow climate signals and natural cycles like El Niño can tilt a trend, especially near the

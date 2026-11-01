@@ -48,6 +48,9 @@ RELATIVE = {"precip", "ndvi", "aod", "no2", "chlor", "snow", "ozone"}
 # Long-term mean range (variable's units, here %) a cell needs to be mapped. Below it the thing is never there (open
 # ocean, snow-free tropics); above it it is always there (ice sheets). Either way the trend is a meaningless 0.
 PRESENT_RANGE = {"seaice": (1.0, 99.0), "snow": (1.0, 99.0)}
+# Model variables mapped only where an independent model agrees on the direction of change (data/interim/{partner}.npz):
+# GLDAS soil moisture vs MERRA-2 topsoil wetness, which disagree on 39% of land.
+AGREE_WITH = {"soil": "gwettop"}
 # NSIDC's published September Arctic sea-ice trend (% per decade vs 1981–2010), for the validation check.
 NSIDC_SEPT_PCT = -11.6
 
@@ -89,6 +92,16 @@ def mask_absent(f: dict[str, np.ndarray], vid: str, clim: np.ndarray) -> dict[st
     with np.errstate(invalid="ignore"):
         absent = ~((clim >= lo) & (clim <= hi))
     out = {k: np.where(absent, np.nan, a) for k, a in f.items()}
+    out["q"] = bh_fdr(out["p"])
+    return out
+
+
+def mask_disagree(f: dict[str, np.ndarray], other: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """Blank the cells where an independent dataset's trend has the opposite sign, is missing, or either is exactly
+    flat (ice sheets, where neither model's soil ever changes); FDR is recomputed."""
+    with np.errstate(invalid="ignore"):
+        agree = (np.sign(f["slope"]) == np.sign(other["slope"])) & (f["slope"] != 0)
+    out = {k: np.where(agree, a, np.nan) for k, a in f.items()}
     out["q"] = bh_fdr(out["p"])
     return out
 
@@ -144,6 +157,7 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
     lats, lons = lat_lon(grid)
     disp = {**DISPLAY.get(vid, {}), **{k: v[k] for k in ("palette", "trend_units") if k in v}}
     anoms, years, months, clim = yearly_anomalies(vid)
+    partner = yearly_anomalies(AGREE_WITH[vid]) if vid in AGREE_WITH else None
 
     palette = disp.get("palette", "warm")
     layers, region_rows, contrasts, ranking = {}, {b[0]: {"id": b[0], "seasons": {}} for b in R.BOXES}, [], {}
@@ -152,6 +166,8 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
         t0 = time.time()
         full = season_cube(anoms, years, months, season)
         f = mask_absent(trend_field(full, YEARS, n_jobs=n_jobs), vid, clim)
+        if partner is not None:
+            f = mask_disagree(f, trend_field(season_cube(*partner[:3], season), YEARS, n_jobs=n_jobs))
         if vmax is None:  # one colour range per variable (from the first season), so seasons are comparable
             finite = np.abs(f["slope"][np.isfinite(f["slope"])])
             vmax = float(np.percentile(finite, 98)) if finite.size else 1.0
@@ -213,6 +229,29 @@ def _region_check(regions_dir: Path, vid: str, expect: dict[str, int], cid: str,
     return {"id": cid, "name": name, "status": "pass" if ok else "fail", "note": "; ".join(parts)}
 
 
+def finish_ranking(ranking: dict) -> None:
+    """Flag regions with both strong rises and falls, and sort each list by share of significant change."""
+    for rows in ranking.values():
+        for items in rows.values():
+            for it in items:
+                it["mixed"] = it["pctRising"] > 10 and it["pctFalling"] > 10
+            items.sort(key=lambda it: -(it["pctRising"] + it["pctFalling"]))
+
+
+def write_validation(out: Path) -> None:
+    """Validation: the two published-record checks, then sign checks on our own regional trends."""
+    V.run(out / "validation.json", published_sea_ice_pct=NSIDC_SEPT_PCT)
+    checks = [c for c in json.loads((out / "validation.json").read_text(encoding="utf-8"))["checks"] if c["id"] in ("sea-ice", "gistemp")]
+    checks += [
+        _region_check(out / "regions", "aod", {"eas": -1, "igp": +1}, "aod-signs", "Haze falls over eastern China, rises over the Indo-Gangetic Plain"),
+        _region_check(out / "regions", "ndvi", {"eas": +1, "igp": +1}, "ndvi-signs", "Greening over China and India (Chen et al. 2019)"),
+        _region_check(out / "regions", "tws", {"igp": -1, "cvy": -1}, "tws-signs", "Water loss in northern India and California (Rodell et al. 2018)"),
+        _region_check(out / "regions", "sealevel", {"glb": +1}, "sealevel", "Global sea level rising"),
+        _region_check(out / "regions", "airs", {"glb": -1}, "strat-cooling", "Stratosphere cooling at 10 hPa"),
+    ]
+    write_json(out / "validation.json", {"checks": checks}, "validation")
+
+
 def export_all(out: Path, variables: list[str] | None = None, seasons=SEASONS, n_jobs: int = -1) -> dict:
     cfg = config()
     grid = grid_spec(0.5)
@@ -229,27 +268,13 @@ def export_all(out: Path, variables: list[str] | None = None, seasons=SEASONS, n
                 ranking.setdefault(rid, {}).setdefault(season, []).extend(items)
         print(f"== {vid} done in {(time.time() - t0) / 60:.1f} min", flush=True)
 
-    for rows in ranking.values():
-        for items in rows.values():
-            for it in items:
-                it["mixed"] = it["pctRising"] > 10 and it["pctFalling"] > 10
-            items.sort(key=lambda it: -(it["pctRising"] + it["pctFalling"]))
+    finish_ranking(ranking)
 
     write_json(out / "regions/index.json", R.index(), "regions-index")
     write_json(out / "contrasts.json", contrasts, "contrasts")
     write_json(out / "ranking.json", ranking, "ranking")
 
-    # Validation: the two published-record checks, then sign checks on our own regional trends.
-    V.run(out / "validation.json", published_sea_ice_pct=NSIDC_SEPT_PCT)
-    checks = [c for c in json.loads((out / "validation.json").read_text(encoding="utf-8"))["checks"] if c["id"] in ("sea-ice", "gistemp")]
-    checks += [
-        _region_check(out / "regions", "aod", {"eas": -1, "igp": +1}, "aod-signs", "Haze falls over eastern China, rises over the Indo-Gangetic Plain"),
-        _region_check(out / "regions", "ndvi", {"eas": +1, "igp": +1}, "ndvi-signs", "Greening over China and India (Chen et al. 2019)"),
-        _region_check(out / "regions", "tws", {"igp": -1, "cvy": -1}, "tws-signs", "Water loss in northern India and California (Rodell et al. 2018)"),
-        _region_check(out / "regions", "sealevel", {"glb": +1}, "sealevel", "Global sea level rising"),
-        _region_check(out / "regions", "airs", {"glb": -1}, "strat-cooling", "Stratosphere cooling at 10 hPa"),
-    ]
-    write_json(out / "validation.json", {"checks": checks}, "validation")
+    write_validation(out)
 
     manifest = {
         "contractVersion": CONTRACT_VERSION,

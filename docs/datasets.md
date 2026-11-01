@@ -6,7 +6,7 @@ Analysis window: Jan 2003 – Dec 2025 = **276 months**.
 
 | Variable | Product | Version | CMR collection | Coverage | Granules in window | Status |
 |---|---|---|---|---|---|---|
-| Air temperature | MERRA-2 `M2TMNXSLV` (var `T2M`) | 5.12.4 | C1276812859-GES_DISC | 1980 → present | 276 | OK |
+| Air temperature | GISTEMP v4 gridded (`tempanomaly`), public file from data.giss.nasa.gov; MERRA-2 `T2M` kept as `t2m_merra2` for the cross-check | v4 | not in CMR | 1880 → present | 276 | OK |
 | Topsoil wetness | MERRA-2 `M2TMNXLND` (var `GWETTOP`) | 5.12.4 | C1276812856-GES_DISC | 1980 → present | 276 | OK |
 | Precipitation | GPM IMERG Final `GPM_3IMERGM` | 07 | C2723754851-GES_DISC | 1998 → **2025-09-30** | **273** | Ends Sep 2025 |
 | Vegetation (NDVI) | MODIS Terra `MOD13C2` | 061 | C2565788914-LPCLOUD | 2000-02 → present | 276 | OK |
@@ -74,7 +74,7 @@ Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`p
 |---|---|---|---|---|
 | Sea level (NASA-SSH, `ssha`) | 276 | Global mean rise, NASA ≈ 3.3–4 mm/yr | **+3.4 mm/yr** (p < 0.0001) | Pass |
 | Sea ice (NSIDC-0051) | 276 | Arctic September decline | −2.7 %-pts/decade (p = 0.05) | Pass (sign; slower after 2007, as published) |
-| Ozone (OMI) | 255 (from Oct 2004) | Near-global ozone roughly flat | **+3.7 DU/decade** (p < 0.0001) | **Suspect**: likely OMI row-anomaly drift; flag before showing |
+| Ozone (OMI) | 255 (from Oct 2004) | Near-global ozone roughly flat | **+3.7 DU/decade** (p < 0.0001) | **Suspect**: likely OMI row-anomaly drift. Replaced 1 Nov by MERRA-2 `TO3`: +1.75 DU/decade (p = 0.018), N mid-latitudes +0.07 (p = 0.96), tropics +2.05; still cautioned |
 | Ozone (OMI) | | Antarctic October hole recovery | −4 DU/decade (p = 0.65) | Not significant; noisy |
 | Sea-surface temp. (MODIS-Aqua day) | 276 | Ocean warming | +0.27 °C/decade (p = 0.07) | Pass (sign, size) |
 | Land surface temp. (MYD11C3 Aqua day; was MOD11C3 Terra, see below) | 276 | Arctic land warming fastest | Arctic +0.55 °C/decade (p = 0.003); global +0.24 (p = 0.024) | Pass (pattern) |

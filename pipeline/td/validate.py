@@ -2,8 +2,8 @@
 
 V1 sea ice: September Arctic extent trend from NSIDC G02135, % per decade relative to the 1981–2010 mean
             (NSIDC's convention; least-squares slope), plus our Sen + corrected MK result for comparison.
-V2 GISTEMP: global annual-mean trend 2003–2025 from GISTEMP v4. MERRA-2's matching number is filled in once
-            the T2M grid is processed.
+V2 GISTEMP: global annual-mean trend 2003–2025 of our gridded air-temperature map (GISTEMP v4, regridded to 0.5°)
+            against NASA's published GISTEMP global mean; MERRA-2's independent model trend is noted alongside.
 """
 
 from __future__ import annotations
@@ -83,9 +83,9 @@ def gistemp_trend(years: np.ndarray, vals: np.ndarray, start: int = 2003, end: i
     return {"senPerDecade": s["slopePerDecade"], "olsPerDecade": np.polyfit(years[sel], vals[sel], 1)[0] * 10, "p": s["p"], "n": s["n"]}
 
 
-def merra_global_trend(start: int = 2003, end: int = 2025) -> dict | None:
-    """Area-weighted global annual mean of the regridded MERRA-2 T2M (data/interim/t2m.npz), if fetched."""
-    path = ROOT / "data" / "interim" / "t2m.npz"
+def global_trend(name: str, start: int = 2003, end: int = 2025) -> dict | None:
+    """Trend of the area-weighted global annual mean of data/interim/{name}.npz, if fetched."""
+    path = ROOT / "data" / "interim" / f"{name}.npz"
     if not path.exists():
         return None
     from .fetch import LATS
@@ -109,17 +109,15 @@ def run(out: Path, published_sea_ice_pct: float | None = None) -> dict:
     else:
         ok = abs(ice["olsPctPerDecade"] - published_sea_ice_pct) <= 1
         ice_check = {"status": "pass" if ok else "fail", "published": published_sea_ice_pct}
-    merra = merra_global_trend()
+    ours, merra = global_trend("t2m"), global_trend("t2m_merra2")
     gis_note = f"GISTEMP Sen slope over {gis['n']} years (OLS {gis['olsPerDecade']:.3f})."
-    if merra is None:
-        gis_check = {"status": "pending", "note": gis_note + " MERRA-2 value added once T2M is fetched."}
+    if merra is not None:
+        gis_note += f" Independent model MERRA-2: {merra['senPerDecade']:.3f} °C/decade (p={merra['p']:.3g})."
+    if ours is None:
+        gis_check = {"status": "pending", "note": gis_note + " Our value is added once the air-temperature grid is fetched."}
     else:
-        ok = abs(merra["senPerDecade"] - gis["senPerDecade"]) <= 0.05
-        gis_check = {
-            "status": "pass" if ok else "fail",
-            "ours": merra["senPerDecade"],
-            "note": gis_note + f" MERRA-2 p={merra['p']:.3g} (plain MK {merra['pOriginal']:.3g}).",
-        }
+        ok = abs(ours["senPerDecade"] - gis["senPerDecade"]) <= 0.05
+        gis_check = {"status": "pass" if ok else "fail", "ours": ours["senPerDecade"], "note": gis_note + f" Our map p={ours['p']:.3g}."}
     result = {
         "checks": [
             {
@@ -132,7 +130,7 @@ def run(out: Path, published_sea_ice_pct: float | None = None) -> dict:
             },
             {
                 "id": "gistemp",
-                "name": "Global temperature trend 2003-2025: MERRA-2 T2M vs GISTEMP v4",
+                "name": "Global temperature trend 2003-2025: our air-temperature map vs NASA GISTEMP v4",
                 "published": gis["senPerDecade"],
                 "tolerance": 0.05,
                 "units": "°C/decade",

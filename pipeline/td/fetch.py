@@ -4,7 +4,8 @@ Each finished month is cached as data/interim/{var}/YYYY-MM.npy, so a stopped ru
 `assemble` stacks the cache into data/interim/{var}.npz for the trend engine.
 
 Routes (docs/datasets.md), one per variable in ROUTE_OF:
-  t2m, aod  MERRA-2 via cloud OPeNDAP, requesting one variable (~0.7 MB/month)
+  t2m       NASA GISTEMP v4 gridded anomalies (thermometers), one public file, 2° → 0.5° bilinear
+  aod       MERRA-2 via cloud OPeNDAP, requesting one variable (~0.7 MB/month)
   precip    IMERG HDF5, downloaded then deleted; stored lon-first, so transposed
   ndvi      MOD13C2 HDF4, downloaded then deleted; 0.05° → 0.5° by 10×10 mean
   tws       GRACE/GRACE-FO mascons, one file holding every month
@@ -58,6 +59,16 @@ def merra_to_half(field: np.ndarray, lat: np.ndarray, lon: np.ndarray) -> np.nda
     f_ext = np.concatenate([field, field[:, :1]], axis=1)
     interp = RegularGridInterpolator((lat, lon_ext), f_ext, bounds_error=False, fill_value=np.nan)
     la, lo = np.meshgrid(LATS, LONS, indexing="ij")
+    return interp(np.stack([la, lo], axis=-1))
+
+
+def gistemp_to_half(field: np.ndarray, lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
+    """Bilinear from GISTEMP's 2° grid (lat −89→89, lon −179→179), wrapping at the date line; the 1° polar
+    rims beyond ±89° take the nearest row. Gaps (NaN) stay gaps."""
+    lon_ext = np.concatenate([[lon[-1] - 360], lon, [lon[0] + 360]])
+    f_ext = np.concatenate([field[:, -1:], field, field[:, :1]], axis=1)
+    interp = RegularGridInterpolator((lat, lon_ext), f_ext, bounds_error=False, fill_value=np.nan)
+    la, lo = np.meshgrid(np.clip(LATS, lat.min(), lat.max()), LONS, indexing="ij")
     return interp(np.stack([la, lo], axis=-1))
 
 
@@ -378,6 +389,28 @@ def fetch_grace(name: str, v: dict, keys: list[str]) -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def fetch_gistemp(name: str, v: dict, keys: list[str]) -> None:
+    """NASA GISTEMP v4 gridded anomalies: one public file (not Earthdata) holding every month since 1880."""
+    import gzip
+    import urllib.request
+
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        path = tmp / "gistemp.nc"
+        with urllib.request.urlopen(v["url"], timeout=300) as r:
+            path.write_bytes(gzip.decompress(r.read()))
+        with xr.open_dataset(path) as ds:
+            months = np.array([str(t)[:7] for t in ds["time"].values])
+            lat, lon = ds["lat"].values, ds["lon"].values
+            data = ds[v["var"]].values.astype(float)
+        for k in keys:
+            sel = np.flatnonzero(months == k)
+            if sel.size:
+                _save(name, k, gistemp_to_half(data[sel[0]], lat, lon))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 _OMI_DAY = r"_(\d{4})m(\d{2})\d{2}_"  # OMI-Aura_L3-OMNO2d_2015m0701_…
 _AIRS_LEVEL = 17  # 10 hPa in StdPressureLev (1000 → 1 hPa): middle stratosphere, where CO2 cooling is clear (50 hPa stalled after 2000)
 
@@ -388,7 +421,7 @@ def _omi(path: Path, var: str) -> np.ndarray:
 
 # name → fetcher(name, v, keys). One entry per variable, so `scripts/fetch.py all` covers every tier.
 ROUTE_OF = {
-    "t2m": lambda n, v, k: fetch_opendap(n, v, k, f"/{v['var']};/lat;/lon", _merra),
+    "t2m": fetch_gistemp,
     "aod": lambda n, v, k: fetch_opendap(n, v, k, f"/{v['var']};/lat;/lon", _merra),
     "precip": lambda n, v, k: fetch_files(n, v, k, _read_imerg),
     "ndvi": lambda n, v, k: fetch_files(n, v, k, _read_ndvi),
@@ -399,7 +432,7 @@ ROUTE_OF = {
     "seaice": lambda n, v, k: fetch_files(n, v, k, _read_seaice, pattern=r"_[NS]25km_(\d{4})(\d{2})_v"),
     "sst": lambda n, v, k: fetch_files(n, v, k, _read_l3m),
     "no2": lambda n, v, k: fetch_opendap(n, v, k, "/HDFEOS/GRIDS/ColumnAmountNO2/Data_Fields/" + v["var"], _omi, pattern=_OMI_DAY, workers=4),
-    "ozone": lambda n, v, k: fetch_opendap(n, v, k, "/HDFEOS/GRIDS/OMI_Column_Amount_O3/Data_Fields/" + v["var"], _omi, pattern=_OMI_DAY, workers=4),
+    "ozone": lambda n, v, k: fetch_opendap(n, v, k, f"/{v['var']};/lat;/lon", _merra),
     "airs": lambda n, v, k: fetch_opendap(n, v, k, f"/ascending/Data_Fields/{v['var']}[{_AIRS_LEVEL}:{_AIRS_LEVEL}][0:179][0:359]", lambda p, var: airs_to_half(_read_subset(p, var))),
     "chlor": lambda n, v, k: fetch_files(n, v, k, _read_l3m),
     "sealevel": lambda n, v, k: fetch_files(n, v, k, _read_sealevel, pattern=r"_(\d{4})(\d{2})\d{2}\.nc$", batch=1),

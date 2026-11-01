@@ -66,15 +66,15 @@ variables:
   t2m:
     tier: 1
     sphere: atmosphere
-    label: Air temperature (2 m)
-    caution: "MERRA-2 warms more slowly than GISTEMP over 2003-2025 (0.21 vs 0.28 °C/decade); the trend direction is right, its size is low."
-    product: M2TMNXSLV
-    version: "5.12.4"
-    daac: GES_DISC
-    var: T2M
-    units: K
+    label: Air temperature (GISTEMP)
+    note: "Measured by thermometers on land and ships/buoys at sea, on a 2° grid, so the map is smoother than the others. Replaced MERRA-2, a model that warms ~25% more slowly (0.21 vs 0.28 °C/decade)."
+    product: GISTEMP v4 (GHCNv4 + ERSSTv5, 1200 km)
+    daac: NASA GISS
+    url: https://data.giss.nasa.gov/pub/gistemp/gistemp1200_GHCNv4_ERSSTv5.nc.gz
+    var: tempanomaly
+    units: "°C"
     trend_units: "°C/decade"
-    regrid: bilinear
+    regrid: bilinear_2deg
     mask: none
     relative: false
     palette: warm
@@ -102,17 +102,17 @@ variables:
   lst:
     tier: 2
     sphere: land
-    label: Land surface temperature
+    label: Land surface temperature (night)
     product: MYD11C3
     version: "061"
     daac: LPCLOUD
-    var: LST_Day_CMG
+    var: LST_Night_CMG
     units: K
     trend_units: "°C/decade"
     regrid: coarsen_10
     mask: land
     palette: warm
-    caution: "Aqua daytime overpass. Terra (MOD11C3) was dropped because its orbit drift since 2020 made 2022-2025 look 1-2 K too cold. Aqua has drifted later since 2022 too; the 2025 dip (strongest in the tropics) may be partly drift, so treat the last year with care."
+    note: "Aqua night overpass (about 1:30 am), which barely feels orbit drift because the ground cools slowly at night. The daytime field dropped: drift made 2025 look up to 1.2 K too cold in the tropics. Night trends track GISTEMP over land (+0.40 vs +0.38 K/decade)."
   snow:
     tier: 2
     sphere: cryosphere
@@ -131,7 +131,7 @@ variables:
     tier: 2
     sphere: hydrology
     label: Soil moisture and evapotranspiration (GLDAS)
-    caution: "Not confirmed by MERRA-2: GLDAS shows drying over 69% of land, MERRA-2 over 42%, and the two agree in sign on only 61% of land. Mediterranean and Amazon drying appear in both; the global drying and Sahel/southern Africa trends do not."
+    caution: "Model data. The map only colours places where two independent models (GLDAS and MERRA-2) agree on wetter or drier; elsewhere it is left blank. Site trends use GLDAS alone: Mediterranean and Amazon drying appear in both models, the global, Sahel and southern Africa drying do not."
     product: GLDAS_NOAH025_M
     version: "2.1"
     daac: GES_DISC
@@ -188,15 +188,14 @@ variables:
   ozone:
     tier: 3
     sphere: atmosphere
-    label: Total column ozone
-    caution: "Near-global rise of +3.7 DU/decade is larger than published records (roughly flat); likely OMI row-anomaly drift since 2007. Treat trends as uncertain."
-    product: OMTO3e
-    version: "003"
+    label: Total column ozone (MERRA-2)
+    caution: "Near-global rise of +1.8 DU/decade is still above published records (roughly flat since 2000), likely because MERRA-2 also takes in OMI, whose sensor has degraded since 2007. Northern mid-latitudes are flat, as published. Treat tropical and global trends as uncertain."
+    product: M2TMNXSLV
+    version: "5.12.4"
     daac: GES_DISC
-    var: ColumnAmountO3
+    var: TO3
     units: DU
-    expected_granules: 7722
-    note: Starts 2004-10; daily.
+    note: "Replaced OMI alone (OMTO3e), whose sensor fault made ozone rise twice as fast (+3.7 DU/decade). MERRA-2 combines OMI with the Aura MLS instrument and covers all of 2003-2025."
   airs:
     tier: 3
     sphere: atmosphere

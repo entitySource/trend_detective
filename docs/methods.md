@@ -46,7 +46,7 @@ Because the split year is found by searching, those p-values are a rough guide, 
 | Greening in China and India (Chen et al. 2019) | Pass |
 | Global sea level rising | Pass (+34 mm/decade) |
 | Stratosphere cooling at 10 hPa | Pass (−0.58 K/decade) |
-| Global temperature: MERRA-2 vs GISTEMP | Fail: 0.21 vs 0.275 °C/decade |
+| Global temperature: our map vs NASA GISTEMP | Pass (0.275 vs 0.275 °C/decade). Earlier MERRA-2 version failed (0.21) |
 | Haze falls in E China, rises in N India | Fail for China: rise-then-fall (section 4) |
 | Water loss in N India and California (Rodell et al. 2018) | Fail for California: p = 0.053, interrupted by wet years |
 
@@ -54,9 +54,9 @@ We keep the failures visible rather than tuning the checks to pass. Full numbers
 
 ## 6. Caveats: when the data itself can fool you
 
-- **Satellite orbit drift.** Terra's overpass got earlier after 2020, making land look 1–2 K cooler in 2022–25, so we switched to Aqua (MYD11C3). Aqua's overpass has also been drifting later since 2022, so the last year carries a caution.
-- **Models are not measurements.** Air temperature (MERRA-2) and soil moisture (GLDAS 2.1) come from models fed with observations, not from direct measurement. MERRA-2 warms more slowly than GISTEMP. MERRA-2 does not confirm GLDAS's global drying: the two agree on whether soil is getting wetter or drier on only 61% of land.
-- **Instrument ageing.** OMI's row anomaly since 2007 probably inflates the ozone trend (+3.7 DU/decade, against roughly flat published records).
+- **Satellite orbit drift.** Terra's overpass got earlier after 2020, making land look 1–2 K cooler in 2022–25, and Aqua's afternoon pass drifted after 2022 (2025 tropics 1.2 K too cold). Ground heat now uses Aqua's night pass (`LST_Night_CMG`), which barely feels the drift: over land it trends +0.40 K/decade against GISTEMP's +0.38, and 2025 no longer dips.
+- **Models are not measurements.** Air temperature first came from MERRA-2, a reanalysis that warms about 25% more slowly than thermometers (0.21 vs 0.28 °C/decade), so it now uses GISTEMP v4, NASA's thermometer record (2° grid, bilinear to 0.5°). Soil moisture has no 23-year global measurement, so it still comes from a model (GLDAS 2.1). GLDAS and MERRA-2 topsoil wetness agree on wetter vs drier on only 61% of land, so the soil map leaves the other cells blank (per season, with FDR recomputed over the cells that remain); site series are GLDAS alone.
+- **Instrument ageing.** OMI's row anomaly since 2007 inflated the ozone trend (+3.7 DU/decade, against roughly flat published records). Ozone now comes from MERRA-2 (TO3), which assimilates OMI and Aura MLS: +1.8 DU/decade near-globally (60°S–60°N, p = 0.02), flat in northern mid-latitudes, and no map cell survives the FDR correction. Still above published records, so it keeps a caution.
 - **Short record.** 23 years is short for slow climate signals, and natural cycles such as El Niño can tilt a trend, especially near the ends of the record.
 - **Sen's slope interval.** The 95% interval assumes independent years, so it is somewhat too narrow where autocorrelation is strong.
 - **One correction family.** The false discovery rate correction covers the whole map of one variable and season, not all variables and seasons together.

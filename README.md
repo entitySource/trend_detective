@@ -52,6 +52,7 @@ python -m venv .venv
 .venv/Scripts/python scripts/run_all.py --skip-fetch # recompute from data/interim only (~90 min)
 .venv/Scripts/python scripts/add_regions.py          # after adding a site to td/regions.py: regional series only (minutes)
 .venv/Scripts/python scripts/mask_absent.py          # re-blank never/always-present sea ice and snow cells in an existing export
+.venv/Scripts/python scripts/reexport.py t2m soil   # re-export some variables in place, keeping the rest
 ```
 
 ```bash
@@ -96,7 +97,7 @@ In the app, "not significant" means "not proven", not "no change".
 | Check | Ours | Published | Result |
 |---|---|---|---|
 | September Arctic sea ice, 1979–2026 | −11.56 %/decade | −11.6 %/decade ([NSIDC, Sept 2026](https://nsidc.org/sea-ice-today/analyses/aint-no-sunshine-when-shes-gone)) | **Pass** (tolerance ±1 percentage point) |
-| Global temperature, 2003–2025 | Waiting for MERRA-2 | GISTEMP v4: +0.275 °C/decade (Sen) | Pending |
+| Global temperature, 2003–2025 | Our GISTEMP map: +0.275 °C/decade | GISTEMP v4: +0.275 °C/decade (Sen) | Pass (MERRA-2 gave 0.206 and failed) |
 
 ## Known issues
 - **MapLibre's worker needs an explicit URL.** `web/src/main.tsx` sets it by importing the worker file as a plain asset. Without that, bundled builds can't find the worker and the map stays empty.
