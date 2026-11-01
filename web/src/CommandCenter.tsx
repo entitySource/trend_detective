@@ -35,14 +35,12 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { dataUrl, type Manifest, type TrendStats } from './contract'
+import { dataUrl, type Manifest, type RegionSeries, type RegionsFile } from './contract'
 import { DEFINITIONS, DEMOS, INTERESTS, LEADS, PLACES, SITES, type Biome, type Site } from './command/content'
-import { quickTrend, turningPoint } from './command/trend'
+import { quickTrend, turningPoint, VERDICT_COLOR, VERDICT_TEXT, verdictOf, type Verdict } from './command/trend'
 
 // ---------- Data and helpers ----------
 
-type RegionSeries = { values: number[]; stats: TrendStats }
-type RegionsFile = { variable: string; years: number[]; regions: { id: string; seasons: Record<string, RegionSeries> }[] }
 type Check = { id: string; name: string; status: 'pass' | 'fail' | 'pending'; note?: string }
 type Theme = 'night' | 'day'
 
@@ -91,15 +89,7 @@ function boxOutline([w, s, e, n]: Site['bbox']): GeoPermissibleObjects {
   return { type: 'LineString', coordinates: pts }
 }
 
-type Verdict = 'rising' | 'falling' | 'noise' | 'unknown'
 type Stats = { slopePerDecade: number | null; p: number | null; n: number; totalChange: number | null; snr: number | null; ciLow: number | null; ciHigh: number | null; relChange?: number | null }
-const verdictOf = (s?: Pick<Stats, 'p' | 'slopePerDecade'>): Verdict => {
-  if (!s || s.p === null || s.slopePerDecade === null) return 'unknown'
-  if (s.p >= 0.05) return 'noise'
-  return s.slopePerDecade > 0 ? 'rising' : 'falling'
-}
-const VERDICT_COLOR: Record<Verdict, string> = { rising: '#fb7185', falling: '#38bdf8', noise: '#94a3b8', unknown: '#475569' }
-const VERDICT_TEXT: Record<Verdict, string> = { rising: 'Rising', falling: 'Falling', noise: 'Not proven', unknown: 'No data' }
 const COMPARE_COLOR = '#fbbf24'
 
 const fmt = (x: number | null | undefined, d = 3) => (x === null || x === undefined || !Number.isFinite(x) ? '–' : Math.abs(x) >= 100 ? x.toFixed(0) : x.toPrecision(d))

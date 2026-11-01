@@ -70,3 +70,13 @@ export function turningPoint(values: number[], years: number[], minYears = 6): T
   if (before.p >= 0.1 || after.p >= 0.1) return null
   return { year: a[a.length - 1][0], before, after }
 }
+
+// Verdict for a site's trend, shared by the globe and the map: real (p < 0.05) rise or fall, or not proven.
+export type Verdict = 'rising' | 'falling' | 'noise' | 'unknown'
+export const verdictOf = (s?: { p: number | null; slopePerDecade: number | null }): Verdict => {
+  if (!s || s.p === null || s.slopePerDecade === null) return 'unknown'
+  if (s.p >= 0.05) return 'noise'
+  return s.slopePerDecade > 0 ? 'rising' : 'falling'
+}
+export const VERDICT_COLOR: Record<Verdict, string> = { rising: '#fb7185', falling: '#38bdf8', noise: '#94a3b8', unknown: '#475569' }
+export const VERDICT_TEXT: Record<Verdict, string> = { rising: 'Rising', falling: 'Falling', noise: 'Not proven', unknown: 'No data' }

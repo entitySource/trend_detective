@@ -38,8 +38,42 @@
 }
 .cc-glow { text-shadow: 0 0 12px rgba(34, 211, 238, 0.6); }
 
+/* Trend map: pulsing investigation-site markers, coloured by verdict through --node. */
+.td-node, .td-legend-node {
+  --node: #22d3ee;
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.td-legend-node { width: 12px; height: 12px; cursor: default; flex-shrink: 0; }
+.td-node::before, .td-legend-node::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--node);
+  box-shadow: 0 0 10px var(--node);
+  transition: transform 0.2s ease;
+}
+.td-legend-node::before { inset: 2px; }
+.td-node::after, .td-legend-node::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1.5px solid var(--node);
+  animation: ping-soft 2.2s ease-out infinite;
+}
+.td-node:hover::before { transform: scale(1.4); }
+.td-node.on::before { transform: scale(1.5); box-shadow: 0 0 0 3px rgba(2, 6, 13, 0.9), 0 0 0 5px var(--node), 0 0 18px var(--node); }
+
 @media (prefers-reduced-motion: reduce) {
-  .cc-scan, .cc-slide, .cc-rise { animation: none; }
+  .cc-scan, .cc-slide, .cc-rise, .td-node::after, .td-legend-node::after { animation: none; }
 }
 
 /* Chart pieces that follow the theme. */

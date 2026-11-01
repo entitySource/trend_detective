@@ -49,4 +49,8 @@ export type TrendStats = {
   n: number
 }
 
+// regions/{var}.json: one yearly series per site, per season.
+export type RegionSeries = { values: number[]; stats: TrendStats }
+export type RegionsFile = { variable: string; years: number[]; regions: { id: string; seasons: Record<string, RegionSeries> }[] }
+
 export const dataUrl = (path: string) => `${import.meta.env.BASE_URL}data/${path}`
