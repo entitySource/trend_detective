@@ -1069,7 +1069,10 @@ export default function CommandCenter() {
 
         {/* Center stage: globe */}
         <section className="relative min-w-0 flex-1">
-          <Globe sites={SITES} colors={colors} selected={siteId} compare={compareId} focus={focus} spinning={spinning} theme={theme} onPick={select} onHover={setHoverCard} />
+          {/* While the mission panel is open on the right, centre the globe in the space left of it. */}
+          <div className={`h-full transition-[padding] duration-500 ${!site && !demo ? 'lg:pr-[21rem] 2xl:pr-[25rem]' : ''}`}>
+            <Globe sites={SITES} colors={colors} selected={siteId} compare={compareId} focus={focus} spinning={spinning} theme={theme} onPick={select} onHover={setHoverCard} />
+          </div>
 
           {/* Hover card: headline stats before opening the case file */}
           {hoverSite && hoverCard && (
