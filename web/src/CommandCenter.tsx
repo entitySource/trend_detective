@@ -1095,7 +1095,9 @@ export default function CommandCenter() {
           )}
 
           {/* Time machine: re-test on the data up to a chosen year */}
-          <div className="cc-glass absolute bottom-3 left-1/2 w-[min(420px,calc(100%-120px))] -translate-x-1/2 rounded-lg px-3 py-2 max-lg:bottom-14 max-lg:w-[calc(100%-24px)]">
+          <div
+            className={`cc-glass absolute bottom-3 left-1/2 w-[min(420px,calc(100%-120px))] -translate-x-1/2 rounded-lg px-3 py-2 transition-[left] duration-500 max-lg:bottom-14 max-lg:w-[calc(100%-24px)] ${!site && !demo ? 'lg:left-[calc((100%-21rem)/2)] lg:w-[min(420px,calc(100%-21rem-48px))] 2xl:left-[calc((100%-25rem)/2)] 2xl:w-[min(420px,calc(100%-25rem-48px))]' : ''}`}
+          >
             <div className="flex items-center justify-between text-xs tracking-wider text-slate-400">
               <span>
                 TIME MACHINE · DATA UP TO <span className="font-mono text-cyan-200">{uptoYear}</span>
