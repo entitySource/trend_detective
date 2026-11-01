@@ -41,6 +41,8 @@ const boxPolygon = ([w, s, e, n]: Site['bbox']): GeoJSON.Feature => ({
   geometry: { type: 'Polygon', coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]] },
 })
 // Rough distance in degrees, good enough to rank nearby sites.
+// Percent with one decimal near 0 and 100, so 0.1% and 99.6% do not round to a misleading 0% and 100%.
+const pct = (x: number) => `${(x > 0 && x < 1) || (x > 99 && x < 100) ? x.toFixed(1) : x.toFixed(0)}%`
 const near = (s: Site, lat: number, lon: number) => Math.hypot(s.lat - lat, (s.lon - lon) * Math.cos((lat * Math.PI) / 180))
 
 // Circular gauge: how sure we are the change is not luck (1 − p).
@@ -78,6 +80,7 @@ export default function App() {
   const [varId, setVarId] = useState<string>('')
   const [season, setSeason] = useState<Season>('ANN')
   const [kind, setKind] = useState<LayerKind>('slope')
+  const [projection, setProjection] = useState<'mercator' | 'globe'>('globe')
   const [probe, setProbe] = useState<Probe>(null)
   const [siteId, setSiteId] = useState<string | null>(null)
   const [regions, setRegions] = useState<RegionsFile | null>(null)
@@ -213,6 +216,15 @@ export default function App() {
     if (m.getSource('trend')) apply()
     else m.once('load', apply)
   }, [overlayUrl, manifest])
+
+  // Flat map (Mercator, stretches the poles) or globe (true shapes everywhere).
+  useEffect(() => {
+    const m = map.current
+    if (!m) return
+    const apply = () => m.setProjection({ type: projection })
+    if (m.isStyleLoaded()) apply()
+    else m.once('load', apply)
+  }, [projection, manifest])
 
   // Colour each site marker by its verdict, and ring the selected one.
   useEffect(() => {
@@ -442,6 +454,25 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <p className="mt-2 mb-1.5 px-1 text-xs font-semibold tracking-[0.15em] text-cyan-400">MAP SHAPE</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    { id: 'mercator', label: 'Flat map', hint: 'Easy to scan, but stretches places near the poles.' },
+                    { id: 'globe', label: 'Globe', hint: 'True shapes and sizes everywhere, including the poles. Drag to turn it.' },
+                  ] as const
+                ).map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setProjection(o.id)}
+                    aria-pressed={projection === o.id}
+                    title={o.hint}
+                    className={`rounded-lg border px-2.5 py-1 text-xs transition ${projection === o.id ? 'border-cyan-300/60 bg-cyan-400/15 text-cyan-50' : 'border-slate-700/70 text-slate-400 hover:text-slate-200'}`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
               <p className="mt-2 mb-1.5 px-1 text-xs font-semibold tracking-[0.15em] text-cyan-400">TIME OF YEAR</p>
               <div className="flex flex-wrap gap-1.5">
                 {manifest.seasons.map((s) => (
@@ -602,9 +633,9 @@ export default function App() {
           {/* Stats dock: real numbers for this clue and time of year */}
           <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: 'Looks real, each spot alone', value: sig ? `${sig.raw.toFixed(0)}%` : '–', sub: 'of the mapped area', color: '#94a3b8' },
-              { label: 'Survives the luck check', value: sig ? `${sig.fdr.toFixed(0)}%` : '–', sub: 'of the mapped area', color: '#22d3ee' },
-              { label: 'Could be flukes', value: sig && sig.raw > 0 ? `${Math.round(100 * (1 - sig.fdr / sig.raw))}%` : '–', sub: 'of the raw hotspots', color: '#fbbf24' },
+              { label: 'Looks real, each spot alone', value: sig ? pct(sig.raw) : '–', sub: 'of the mapped area', color: '#94a3b8' },
+              { label: 'Survives the luck check', value: sig ? pct(sig.fdr) : '–', sub: 'of the mapped area', color: '#22d3ee' },
+              { label: 'Could be flukes', value: sig && sig.raw > 0 ? pct(100 * (1 - sig.fdr / sig.raw)) : '–', sub: 'of the raw hotspots', color: '#fbbf24' },
               { label: `Sites, ${SEASON_LABEL[season].toLowerCase()}`, value: `${counts[0]} ▲ ${counts[1]} ▼`, sub: `${counts[2]} not proven of ${SITES.length}`, color: '#34d399' },
             ].map((c) => (
               <div key={c.label} className="cc-glass rounded-xl px-4 py-3">

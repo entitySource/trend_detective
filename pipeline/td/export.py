@@ -26,7 +26,7 @@ from . import validate as V
 from .colors import PALETTES, classes, ramp
 from .contract import CONTRACT_VERSION, OVERLAY_BOUNDS, PLANES, grid_spec, lat_lon, to_mercator, write_grid, write_json
 from .mock import catalogue
-from .stats import aggregate, monthly_anomalies, series_stats, trend_field
+from .stats import aggregate, bh_fdr, monthly_anomalies, series_stats, trend_field
 
 ROOT = Path(__file__).resolve().parents[2]
 INTERIM = ROOT / "data" / "interim"
@@ -45,6 +45,9 @@ DISPLAY = {
 }
 # Variables where "% of the usual level" makes sense (positive quantities with a meaningful zero).
 RELATIVE = {"precip", "ndvi", "aod", "no2", "chlor", "snow", "ozone"}
+# Long-term mean range (variable's units, here %) a cell needs to be mapped. Below it the thing is never there (open
+# ocean, snow-free tropics); above it it is always there (ice sheets). Either way the trend is a meaningless 0.
+PRESENT_RANGE = {"seaice": (1.0, 99.0), "snow": (1.0, 99.0)}
 # NSIDC's published September Arctic sea-ice trend (% per decade vs 1981–2010), for the validation check.
 NSIDC_SEPT_PCT = -11.6
 
@@ -75,6 +78,19 @@ def region_series(full: np.ndarray, clim: np.ndarray, lats: np.ndarray, mask: np
     cm = mask & np.isfinite(clim)
     c = float(np.sum(np.where(cm, clim, 0) * coslat) / np.sum(cm * coslat)) if cm.any() else float("nan")
     return series, series_stats(series, YEARS, climatology=c if vid in RELATIVE and np.isfinite(c) and c > 0 else None)
+
+
+def mask_absent(f: dict[str, np.ndarray], vid: str, clim: np.ndarray) -> dict[str, np.ndarray]:
+    """Blank the cells where the quantity never changes because it is never there or always there (see PRESENT_RANGE).
+    FDR is then recomputed over the cells that remain."""
+    if vid not in PRESENT_RANGE:
+        return f
+    lo, hi = PRESENT_RANGE[vid]
+    with np.errstate(invalid="ignore"):
+        absent = ~((clim >= lo) & (clim <= hi))
+    out = {k: np.where(absent, np.nan, a) for k, a in f.items()}
+    out["q"] = bh_fdr(out["p"])
+    return out
 
 
 def ranking_row(f: dict[str, np.ndarray], mask: np.ndarray, vid: str, stats: dict) -> dict | None:
@@ -135,7 +151,7 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
     for season in seasons:
         t0 = time.time()
         full = season_cube(anoms, years, months, season)
-        f = trend_field(full, YEARS, n_jobs=n_jobs)
+        f = mask_absent(trend_field(full, YEARS, n_jobs=n_jobs), vid, clim)
         if vmax is None:  # one colour range per variable (from the first season), so seasons are comparable
             finite = np.abs(f["slope"][np.isfinite(f["slope"])])
             vmax = float(np.percentile(finite, 98)) if finite.size else 1.0

@@ -24,7 +24,9 @@ Compare every year with every later year: count how often the later one is highe
 
 If you test 100,000 map cells at p < 0.10, about 10,000 will light up by pure luck. So the map's **"Significant (corrected)"** view uses the Benjamini–Hochberg false discovery rate: of the cells we colour, at most about 10% are expected to be flukes (q ≤ 0.10).
 
-The **"Significant (raw)"** view shows each cell tested alone, for comparison. The gap is the lesson: for rainfall, 23% of the map looks significant raw but only 6% survives the correction; for snow, 8% falls to 0%.
+The **"Significant (raw)"** view shows each cell tested alone, for comparison. The gap is the lesson: for rainfall, 23% of the map looks significant raw but only 6% survives the correction; for snow, 15% falls to 0%.
+
+Sea ice and snow maps leave blank the places where they are never there (open ocean that never freezes, snow-free tropics) or always there (ice sheets): a trend of exactly zero there means nothing, and those cells would otherwise dilute the correction.
 
 ## 4. Turning points ("plot twists")
 
