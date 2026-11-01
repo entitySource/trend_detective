@@ -126,6 +126,17 @@ const DETECTIVE_STEPS = [
   { n: 4, title: 'Test it', text: 'Press “Test it”. The app checks if the change is real, or could just be natural ups and downs.' },
 ]
 
+// Why a place can have no series for a clue: the thing being measured does not exist there.
+const NO_DATA_REASON: Record<string, (place: string) => string> = {
+  seaice: (p) => `Sea ice only forms on cold oceans, and there is none at ${p}, so there is nothing to measure here.`,
+  sealevel: (p) => `Sea level is measured over the open ocean, and ${p} is inland, so there is no sea to measure.`,
+  ndvi: (p) => `Greenness measures plants, and ${p} is almost all ice and snow, so there are no plants to see.`,
+  soil: (p) => `Soil moisture needs soil, and ${p} is almost all ice, so the land model has nothing to measure.`,
+  chlor: (p) => `Plankton is seen in open, sunlit water. At ${p} there are too few clear years of measurements to test a trend.`,
+}
+const noDataReason = (vid: string, place: string) =>
+  NO_DATA_REASON[vid]?.(place) ?? `The satellites do not have enough measurements at ${place} for this clue to test a trend.`
+
 // Friendly names for the place types used in the filters and site list.
 const PLACE_LABEL: Record<string, string> = Object.fromEntries(PLACES.map((p) => [p.id, p.label]))
 
@@ -1270,7 +1281,7 @@ export default function CommandCenter() {
               <Info text={EXPLAIN.compare} />
             </label>
 
-            {cur && curStats ? (
+            {cur && curStats && curStats.slopePerDecade !== null ? (
               <>
                 <div className="mt-3 rounded-lg border border-cyan-400/15 bg-slate-950/40 p-3 pb-4">
                   <div className="mb-1 flex flex-wrap justify-between gap-1 text-xs tracking-wider text-slate-400">
@@ -1431,7 +1442,28 @@ export default function CommandCenter() {
                 )}
               </>
             ) : (
-              <p className="mt-4 text-xs text-slate-500">No regional series for this variable yet.</p>
+              <div className="mt-4 rounded-lg border border-slate-700/70 bg-slate-950/40 p-4">
+                <p className="text-sm font-semibold text-slate-100">Nothing to measure here for {short.toLowerCase()}</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-300">{noDataReason(varId, site.name)}</p>
+                <p className="mt-3 text-xs font-medium text-slate-500">Try one of these clues for {site.name} instead:</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {manifest.variables
+                    .filter((v) => v.id !== varId && statsFor(v.id, site.id)?.slopePerDecade != null)
+                    .slice(0, 6)
+                    .map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => {
+                          setVarId(v.id)
+                          setStage('idle')
+                        }}
+                        className="rounded-full border border-cyan-400/40 px-3 py-1 text-sm text-cyan-100 transition hover:bg-cyan-400/10"
+                      >
+                        {DEFINITIONS[v.id]?.short ?? v.label}
+                      </button>
+                    ))}
+                </div>
+              </div>
             )}
           </aside>
         )}
