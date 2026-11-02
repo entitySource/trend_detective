@@ -993,7 +993,7 @@ export default function CommandCenter() {
         <aside className="cc-glass flex w-80 shrink-0 flex-col overflow-hidden rounded-xl max-lg:hidden 2xl:w-96">
           <ScrollArea className="min-h-0 flex-1" viewportClassName="flex flex-col gap-6 p-5" label="Clues and places">
           <section>
-            <h2 className="text-xs font-semibold tracking-[0.15em] text-cyan-400">STEP 1 · CHOOSE A CLUE</h2>
+            <h2 className="text-xs font-semibold tracking-[0.15em] text-cyan-400">CHOOSE A CLUE</h2>
             <p className="mt-1 text-sm leading-relaxed text-slate-400">A clue is something NASA satellites measure every month. Pick one to see where on Earth it is changing.</p>
             <div className="mt-3 space-y-3">
               {INTERESTS.map((g) => {
@@ -1040,7 +1040,7 @@ export default function CommandCenter() {
 
           <section>
             <h2 className="flex items-center gap-1.5 text-xs font-semibold tracking-[0.15em] text-cyan-400">
-              <Filter className="h-3.5 w-3.5" /> STEP 2 · CHOOSE A PLACE
+              <Filter className="h-3.5 w-3.5" /> CHOOSE A PLACE
             </h2>
             <p className="mt-1 text-sm leading-relaxed text-slate-400">Click a place to open its case file, or click a glowing dot on the globe.</p>
             <label className="mt-3 flex items-center gap-2 rounded-lg border border-slate-700/70 bg-slate-900/50 px-3 py-2">
@@ -1355,7 +1355,7 @@ export default function CommandCenter() {
                 <div className="mt-3 rounded-lg border border-cyan-400/15 bg-slate-950/40 p-3 pb-4">
                   <div className="mb-1 flex flex-wrap justify-between gap-1 text-xs tracking-wider text-slate-400">
                     <span>
-                      3 · THE EVIDENCE: {short.toUpperCase()} EACH YEAR VS. NORMAL
+                      THE EVIDENCE: {short.toUpperCase()} EACH YEAR VS. NORMAL
                       <Info text={EXPLAIN.chart} />
                     </span>
                     {cmpSite && (
@@ -1435,7 +1435,7 @@ export default function CommandCenter() {
                   className="mt-4 flex items-center justify-center gap-2 rounded-lg border border-cyan-300/50 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 py-2.5 text-sm font-semibold tracking-wider text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.15)] transition hover:from-cyan-500/30 hover:to-emerald-500/30 disabled:opacity-70"
                 >
                   {stage === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
-                  {stage === 'running' ? 'RUNNING TREND TEST…' : stage === 'done' ? 'RUN AGAIN' : `4 · TEST IT${truncated ? ` (UP TO ${uptoYear})` : ''}`}
+                  {stage === 'running' ? 'RUNNING TREND TEST…' : stage === 'done' ? 'RUN AGAIN' : `TEST IT${truncated ? ` (UP TO ${uptoYear})` : ''}`}
                 </button>
 
                 {stage !== 'idle' && (
@@ -1582,7 +1582,7 @@ export default function CommandCenter() {
             </div>
             <p className="mt-1 text-xs text-slate-400">Answer two questions and we’ll suggest where a trend might be hiding, based on published research.</p>
 
-            <h3 className="mt-4 text-xs font-semibold tracking-[0.2em] text-cyan-400">1 · WHAT INTERESTS YOU?</h3>
+            <h3 className="mt-4 text-xs font-semibold tracking-[0.2em] text-cyan-400">WHAT INTERESTS YOU?</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               {INTERESTS.map((i) => (
                 <button
@@ -1596,7 +1596,7 @@ export default function CommandCenter() {
               ))}
             </div>
 
-            <h3 className="mt-4 text-xs font-semibold tracking-[0.2em] text-cyan-400">2 · WHAT KIND OF PLACE?</h3>
+            <h3 className="mt-4 text-xs font-semibold tracking-[0.2em] text-cyan-400">WHAT KIND OF PLACE?</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               {PLACES.map((p) => (
                 <button
