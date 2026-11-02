@@ -1189,14 +1189,13 @@ export default function CommandCenter() {
             </div>
           </div>
 
-          <div className="cc-glass absolute top-3 left-3 flex flex-col gap-1 rounded-lg px-3 py-2 text-xs tracking-wider text-slate-400 max-xl:hidden">
+          <div className="cc-glass absolute top-3 left-3 flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-[10px] leading-tight tracking-wider text-slate-400 max-xl:hidden">
             {(['rising', 'falling', 'noise'] as const).map((v) => (
               <span key={v} className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 6px ${VERDICT_COLOR[v]}` }} />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 4px ${VERDICT_COLOR[v]}` }} />
                 {VERDICT_TEXT[v].toUpperCase()}
               </span>
             ))}
-            <span className="text-slate-500">REAL = UNDER 1-IN-20 CHANCE OF LUCK</span>
           </div>
           <button
             onClick={() => setSpinning((s) => !s)}
