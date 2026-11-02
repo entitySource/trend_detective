@@ -2,7 +2,8 @@
 // trend test, two-site comparison, a timeline slider that re-tests on fewer years, a guided "what / where"
 // question flow and watchable demo cases. Reads the same contract files as the map view (manifest,
 // regions/{var}.json, validation.json), so it shows real data as soon as the pipeline exports it.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { geoDistance, geoEquirectangular, geoGraticule10, geoInterpolate, geoOrthographic, geoPath, type GeoPermissibleObjects } from 'd3-geo'
 import { feature, mesh } from 'topojson-client'
 import type { GeometryCollection, Topology } from 'topojson-specification'
@@ -159,26 +160,73 @@ function readUrl(): UrlState {
 
 // ---------- Small visual pieces ----------
 
+// The (?) popup is portalled to <body> with fixed positioning so scrolling panels (overflow) never clip it,
+// then nudged to stay inside the window: below the icon if it fits, otherwise above. It follows the icon
+// when a panel scrolls and closes once the icon leaves the window.
+const TIP_W = 256
+const TIP_GAP = 8
+
 function Info({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const btn = useRef<HTMLButtonElement>(null)
+  const tip = useRef<HTMLSpanElement>(null)
+
+  useLayoutEffect(() => {
+    if (!open) return setPos(null)
+    const place = () => {
+      const b = btn.current?.getBoundingClientRect()
+      const h = tip.current?.offsetHeight ?? 0
+      if (!b) return
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      if (b.bottom < 0 || b.top > vh) return setOpen(false)
+      const w = Math.min(TIP_W, vw - 2 * TIP_GAP)
+      const left = Math.max(TIP_GAP, Math.min(b.left + b.width / 2 - w / 2, vw - w - TIP_GAP))
+      const below = b.bottom + TIP_GAP
+      const top = below + h <= vh - TIP_GAP ? below : Math.max(TIP_GAP, b.top - TIP_GAP - h)
+      setPos({ left, top })
+    }
+    place()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true) // capture: any scrolling panel moves the icon
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
   return (
-    <span className="relative inline-block">
+    <>
       <button
+        ref={btn}
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setOpen(false)}
         aria-label="What does this mean?"
         aria-expanded={open}
-        className="ml-1 align-middle text-cyan-400/70 hover:text-cyan-200"
+        className="ml-1 inline-flex h-4 w-4 shrink-0 -translate-y-px items-center justify-center rounded-full align-middle text-cyan-400/70 hover:text-cyan-200 focus-visible:text-cyan-200"
       >
-        <HelpCircle className="h-3 w-3" />
+        <HelpCircle className="h-3.5 w-3.5" />
       </button>
-      {open && (
-        <span role="tooltip" className="cc-glass absolute top-5 right-0 z-30 w-60 rounded-lg p-2.5 text-left text-[13px] leading-relaxed font-normal tracking-normal text-slate-200 normal-case">
-          {text}
-        </span>
-      )}
-    </span>
+      {open &&
+        createPortal(
+          <span
+            ref={tip}
+            role="tooltip"
+            onMouseDown={(e) => e.preventDefault()} // keep focus on the button so clicking the text doesn't close it
+            style={{ position: 'fixed', left: pos?.left ?? 0, top: pos?.top ?? 0, width: Math.min(TIP_W, window.innerWidth - 2 * TIP_GAP), visibility: pos ? 'visible' : 'hidden' }}
+            aria-live="polite"
+            className="cc-glass z-[1000] block rounded-lg p-3 text-left text-[13px] leading-relaxed font-normal tracking-normal text-slate-200 normal-case shadow-xl shadow-black/50"
+          >
+            {text}
+          </span>,
+          document.body,
+        )}
+    </>
   )
 }
 
