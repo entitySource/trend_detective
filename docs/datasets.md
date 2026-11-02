@@ -74,7 +74,7 @@ Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`p
 |---|---|---|---|---|
 | Sea level (NASA-SSH, `ssha`) | 276 | Global mean rise, NASA ≈ 3.3–4 mm/yr | **+3.4 mm/yr** (p < 0.0001) | Pass |
 | Sea ice (NSIDC-0051) | 276 | Arctic September decline | −2.7 %-pts/decade (p = 0.05) | Pass (sign; slower after 2007, as published) |
-| Ozone (OMI) | 255 (from Oct 2004) | Near-global ozone roughly flat | **+3.7 DU/decade** (p < 0.0001) | **Suspect**: likely OMI row-anomaly drift. Replaced 1 Nov by MERRA-2 `TO3`: +1.75 DU/decade (p = 0.018), N mid-latitudes +0.07 (p = 0.96), tropics +2.05; still cautioned |
+| Ozone (OMI) | 255 (from Oct 2004) | Near-global ozone roughly flat | **+3.7 DU/decade** (p < 0.0001) | **Suspect**: likely OMI row-anomaly drift. Replaced 1 Nov by MERRA-2 `TO3` (+1.75 DU/decade), then by OMPS NM L3 (2012–2025): over 2012–2025 OMPS +1.47 (p = 0.59), MERRA-2 +2.56, OMI +4.18 near-globally |
 | Ozone (OMI) | | Antarctic October hole recovery | −4 DU/decade (p = 0.65) | Not significant; noisy |
 | Sea-surface temp. (MODIS-Aqua day) | 276 | Ocean warming | +0.27 °C/decade (p = 0.07) | Pass (sign, size) |
 | Land surface temp. (MYD11C3 Aqua day; was MOD11C3 Terra, see below) | 276 | Arctic land warming fastest | Arctic +0.55 °C/decade (p = 0.003); global +0.24 (p = 0.024) | Pass (pattern) |

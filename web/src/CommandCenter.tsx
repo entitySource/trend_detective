@@ -102,7 +102,7 @@ const perDecade = (u: string) => u.replace(/\s*\/\s*decade$/, ' every 10 years')
 
 // Each step of the real method, in plain words (technical name in brackets for the curious).
 const STAGES = [
-  'Collecting 23 years of satellite measurements',
+  'Collecting every year of satellite measurements',
   'Taking out the normal summer–winter swing (seasonal anomalies)',
   'Averaging over the whole region, one value per year',
   'Asking: could a pattern like this happen by luck? (Mann-Kendall test)',
@@ -112,7 +112,7 @@ const STAGES = [
 const DETECTIVE_STEPS = [
   { n: 1, title: 'Choose a clue', text: 'On the left, pick something satellites measure, like heat, rain, haze or how green plants are.' },
   { n: 2, title: 'Choose a place', text: 'Click a glowing dot on the globe or a name in the list. Each one is a region with a story.' },
-  { n: 3, title: 'Look at the evidence', text: 'You will see one dot for every year from 2003 to 2025. Does it look like it goes up or down?' },
+  { n: 3, title: 'Look at the evidence', text: 'You will see one dot for every year of the record (2003 to 2025 for most clues). Does it look like it goes up or down?' },
   { n: 4, title: 'Test it', text: 'Press “Test it”. The app checks if the change is real, or could just be natural ups and downs.' },
 ]
 

@@ -72,6 +72,17 @@ def gistemp_to_half(field: np.ndarray, lat: np.ndarray, lon: np.ndarray) -> np.n
     return interp(np.stack([la, lo], axis=-1))
 
 
+def omps_to_half(o3: np.ndarray) -> np.ndarray:
+    """OMPS NM L3 total ozone (180, 360) at 1°, latitude south→north, fill −1.27e30 → (360, 720) north→south."""
+    a = np.where(o3 > 0, o3, np.nan)[::-1]
+    return np.repeat(np.repeat(a, 2, axis=0), 2, axis=1)
+
+
+def cci_to_half(sm: np.ndarray) -> np.ndarray:
+    """ESA CCI soil moisture (720, 1440) at 0.25°, already north→south from −180, NaN where flagged → 0.5° mean."""
+    return coarsen_mean(sm, 2)
+
+
 def imerg_to_half(precip_lon_lat: np.ndarray) -> np.ndarray:
     """IMERG (3600 lon, 1800 lat; lat south→north) in mm/hr → (360, 720) north→south in mm/day."""
     a = precip_lon_lat.T[::-1]
@@ -411,6 +422,46 @@ def fetch_gistemp(name: str, v: dict, keys: list[str]) -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def fetch_cci(name: str, v: dict, keys: list[str], workers: int = 8) -> None:
+    """ESA CCI soil moisture: open daily files from the CEDA archive (no login), averaged into each month."""
+    import calendar
+    import urllib.request
+
+    def day(url: str) -> np.ndarray | None:
+        for attempt in range(6):  # CEDA drops connections now and then (IncompleteRead, read timeouts)
+            try:
+                with urllib.request.urlopen(url, timeout=60) as r:
+                    raw = r.read()
+                break
+            except Exception as e:
+                if getattr(e, "code", None) == 404:
+                    return None
+                if attempt == 5:
+                    raise
+                time.sleep(15 * (attempt + 1))
+        fd, path = tempfile.mkstemp(suffix=".nc")
+        with open(fd, "wb") as f:
+            f.write(raw)
+        try:
+            with xr.open_dataset(path) as ds:
+                return cci_to_half(ds[v["var"]].values[0].astype(float))
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    todo = [k for k in keys if k not in _done(name)]
+    with ThreadPoolExecutor(workers) as pool:
+        for k in todo:
+            y, m = map(int, k.split("-"))
+            urls = [v["url"].format(y=y, date=f"{y:04d}{m:02d}{d:02d}") for d in range(1, calendar.monthrange(y, m)[1] + 1)]
+            fields = [f for f in pool.map(day, urls) if f is not None]
+            if not fields:  # month not published (yet)
+                continue
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                _save(name, k, np.nanmean(np.stack(fields), axis=0))
+            print(f"  {name} {k}: {len(fields)} days", flush=True)
+
+
 _OMI_DAY = r"_(\d{4})m(\d{2})\d{2}_"  # OMI-Aura_L3-OMNO2d_2015m0701_…
 _AIRS_LEVEL = 17  # 10 hPa in StdPressureLev (1000 → 1 hPa): middle stratosphere, where CO2 cooling is clear (50 hPa stalled after 2000)
 
@@ -432,7 +483,7 @@ ROUTE_OF = {
     "seaice": lambda n, v, k: fetch_files(n, v, k, _read_seaice, pattern=r"_[NS]25km_(\d{4})(\d{2})_v"),
     "sst": lambda n, v, k: fetch_files(n, v, k, _read_l3m),
     "no2": lambda n, v, k: fetch_opendap(n, v, k, "/HDFEOS/GRIDS/ColumnAmountNO2/Data_Fields/" + v["var"], _omi, pattern=_OMI_DAY, workers=4),
-    "ozone": lambda n, v, k: fetch_opendap(n, v, k, f"/{v['var']};/lat;/lon", _merra),
+    "ozone": lambda n, v, k: fetch_opendap(n, v, [m for m in k if m >= f"{v['start_year']}-01"], f"/{v['var']}", lambda p, var: omps_to_half(_read_subset(p, var)), pattern=_OMI_DAY),
     "airs": lambda n, v, k: fetch_opendap(n, v, k, f"/ascending/Data_Fields/{v['var']}[{_AIRS_LEVEL}:{_AIRS_LEVEL}][0:179][0:359]", lambda p, var: airs_to_half(_read_subset(p, var))),
     "chlor": lambda n, v, k: fetch_files(n, v, k, _read_l3m),
     "sealevel": lambda n, v, k: fetch_files(n, v, k, _read_sealevel, pattern=r"_(\d{4})(\d{2})\d{2}\.nc$", batch=1),

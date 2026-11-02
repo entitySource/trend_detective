@@ -17,7 +17,7 @@ Decided 26 Oct 2026 from two ECC deep-research passes. Every product below was c
 | 2 | 9 | Sea ice | Cryosphere | NSIDC-0051 (2), polar grid | Arctic loss vs Antarctic gain until 2015 | Parkinson 2019, *PNAS*; NSIDC Sea Ice Index |
 | 2 | 10 | Sea surface temperature | Ocean | MUR L4 (4.1), daily, very large | Warming vs cooler eastern Pacific and Southern Ocean | NOAA OISST |
 | 3 | 11 | NO₂ | Atmosphere | OMNO2d (003), from Oct 2004 | US and EU falling vs India rising | Krotkov et al. 2016, *ACP* |
-| 3 | 12 | Total ozone | Atmosphere | MERRA-2 M2TMNXSLV `TO3` (5.12.4), assimilates OMI + MLS | Antarctic recovery vs small mid-latitude decline | WMO Ozone Assessment 2022 |
+| 3 | 12 | Total ozone | Atmosphere | OMPS_NPP_NMTO3_L3_DAILY (2), from 2012, independent of OMI | Antarctic recovery vs small mid-latitude decline | WMO Ozone Assessment 2022 |
 | 3 | 13 | Upper-air temperature / CO₂ | Atmosphere | AIRS3STM (7.0) | Stratosphere cooling vs troposphere warming | NOAA Mauna Loa |
 | 3 | 14 | Ocean chlorophyll | Ocean | MODISA_L3m_CHL (2022.0) | Subtropical gyres declining vs high latitudes rising | Cael et al. 2023, *Nature* |
 | 3 | 15 | Sea level | Ocean | NASA_SSH_REF_SIMPLE_GRID_V1 | Global rise vs 1993–2012 eastern Pacific fall | PSMSL tide gauges |

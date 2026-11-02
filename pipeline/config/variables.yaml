@@ -188,14 +188,14 @@ variables:
   ozone:
     tier: 3
     sphere: atmosphere
-    label: Total column ozone (MERRA-2)
-    caution: "Near-global rise of +1.8 DU/decade is still above published records (roughly flat since 2000), likely because MERRA-2 also takes in OMI, whose sensor has degraded since 2007. Northern mid-latitudes are flat, as published. Treat tropical and global trends as uncertain."
-    product: M2TMNXSLV
-    version: "5.12.4"
+    label: Total column ozone (OMPS)
+    product: OMPS_NPP_NMTO3_L3_DAILY
+    version: "2"
     daac: GES_DISC
-    var: TO3
+    var: ColumnAmountO3
     units: DU
-    note: "Replaced OMI alone (OMTO3e), whose sensor fault made ozone rise twice as fast (+3.7 DU/decade). MERRA-2 combines OMI with the Aura MLS instrument and covers all of 2003-2025."
+    start_year: 2012
+    note: "Suomi NPP OMPS, independent of OMI, from 2012: daily 1° fields averaged to months. Replaced OMI (sensor fault, +3.7 DU/decade fake rise) and then MERRA-2 (assimilates OMI; over 2012-2025 it ran 1-2.5 DU/decade above OMPS in every latitude band). OMPS near-global 2012-2025: +1.5 DU/decade, p = 0.59, consistent with roughly flat published records."
   airs:
     tier: 3
     sphere: atmosphere

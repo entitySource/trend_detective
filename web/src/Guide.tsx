@@ -282,8 +282,8 @@ export function MethodsPage() {
           from a model (GLDAS); two models agree on wetter or drier on only 61% of land, and the map shows only those places.
         </li>
         <li>
-          <strong className="text-slate-100">Instruments age.</strong> A fault on the OMI ozone instrument since 2007 made ozone seem to rise twice as fast as it does.
-          We switched to MERRA-2 ozone, which also uses a second instrument (MLS) and halves that rise, but it still rises more than published records.
+          <strong className="text-slate-100">Instruments age.</strong> A fault on the OMI ozone instrument since 2007 made ozone seem to rise. A model built partly on OMI
+          (MERRA-2) still carried some of that rise, so ozone now comes from a different satellite, OMPS. It only starts in 2012, which is why the ozone record is shorter.
         </li>
         <li>
           <strong className="text-slate-100">23 years is short.</strong> Slow climate signals and natural cycles like El Niño can tilt a trend, especially near the

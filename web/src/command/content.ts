@@ -480,7 +480,7 @@ export const DEFINITIONS: Record<string, { short: string; plain: string; source:
   seaice: { short: 'Sea ice', plain: 'How much of the ocean surface is covered by floating ice, from 0% to 100%, seen by microwave satellites through clouds and polar night.', source: 'NASA/NSIDC passive microwave' },
   sst: { short: 'Ocean heat', plain: 'The temperature of the top skin of the ocean. Oceans soak up most of the extra heat from global warming.', source: 'NASA MODIS Aqua' },
   no2: { short: 'NO₂ pollution', plain: 'Nitrogen dioxide in the lower air, a gas mostly from car exhausts and power plants. A good fingerprint of burning fuel.', source: 'NASA OMI on Aura' },
-  ozone: { short: 'Ozone layer', plain: 'The total ozone above you, in Dobson units. Ozone high up blocks harmful UV rays, like Earth’s sunscreen.', source: 'NASA MERRA-2 (OMI and MLS on Aura)' },
+  ozone: { short: 'Ozone layer', plain: 'The total ozone above you, in Dobson units. Ozone high up blocks harmful UV rays, like Earth’s sunscreen. This record starts in 2012, so it has fewer years than the other clues.', source: 'NASA OMPS on Suomi NPP' },
   airs: { short: 'Upper-air temp.', plain: 'Air temperature about 30 km up, in the stratosphere. Extra CO₂ warms the surface but cools this layer: a fingerprint of greenhouse warming.', source: 'NASA AIRS on Aqua' },
   chlor: { short: 'Ocean plankton', plain: 'Chlorophyll in sea water, a sign of tiny floating plants (phytoplankton) that feed ocean food chains.', source: 'NASA MODIS Aqua' },
   sealevel: { short: 'Sea level', plain: 'The height of the sea surface measured by radar satellites, compared with its usual level, in millimetres.', source: 'NASA sea-surface height record' },

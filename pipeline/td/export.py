@@ -74,13 +74,13 @@ def _box_mean(cube: np.ndarray, lats: np.ndarray, mask: np.ndarray) -> np.ndarra
         return np.where(den > 0, num / den, np.nan)
 
 
-def region_series(full: np.ndarray, clim: np.ndarray, lats: np.ndarray, mask: np.ndarray, vid: str) -> tuple[np.ndarray, dict]:
+def region_series(full: np.ndarray, clim: np.ndarray, lats: np.ndarray, mask: np.ndarray, vid: str, years: np.ndarray = YEARS) -> tuple[np.ndarray, dict]:
     """One region's yearly series (box mean of the anomalies) and its trend stats, relative change where meaningful."""
     series = _box_mean(full, lats, mask)
     coslat = np.cos(np.radians(lats))[:, None]
     cm = mask & np.isfinite(clim)
     c = float(np.sum(np.where(cm, clim, 0) * coslat) / np.sum(cm * coslat)) if cm.any() else float("nan")
-    return series, series_stats(series, YEARS, climatology=c if vid in RELATIVE and np.isfinite(c) and c > 0 else None)
+    return series, series_stats(series, years, climatology=c if vid in RELATIVE and np.isfinite(c) and c > 0 else None)
 
 
 def mask_absent(f: dict[str, np.ndarray], vid: str, clim: np.ndarray) -> dict[str, np.ndarray]:
@@ -158,16 +158,19 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
     disp = {**DISPLAY.get(vid, {}), **{k: v[k] for k in ("palette", "trend_units") if k in v}}
     anoms, years, months, clim = yearly_anomalies(vid)
     partner = yearly_anomalies(AGREE_WITH[vid]) if vid in AGREE_WITH else None
+    # A record that starts later (e.g. OMPS ozone, 2012) is tested on its own years only.
+    keep = YEARS >= int(v.get("start_year", YEARS[0]))
+    years_axis = YEARS[keep]
 
     palette = disp.get("palette", "warm")
     layers, region_rows, contrasts, ranking = {}, {b[0]: {"id": b[0], "seasons": {}} for b in R.BOXES}, [], {}
     vmax = None
     for season in seasons:
         t0 = time.time()
-        full = season_cube(anoms, years, months, season)
-        f = mask_absent(trend_field(full, YEARS, n_jobs=n_jobs), vid, clim)
+        full = season_cube(anoms, years, months, season)[keep]
+        f = mask_absent(trend_field(full, years_axis, n_jobs=n_jobs), vid, clim)
         if partner is not None:
-            f = mask_disagree(f, trend_field(season_cube(*partner[:3], season), YEARS, n_jobs=n_jobs))
+            f = mask_disagree(f, trend_field(season_cube(*partner[:3], season)[keep], years_axis, n_jobs=n_jobs))
         if vmax is None:  # one colour range per variable (from the first season), so seasons are comparable
             finite = np.abs(f["slope"][np.isfinite(f["slope"])])
             vmax = float(np.percentile(finite, 98)) if finite.size else 1.0
@@ -182,7 +185,7 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
         regional = []
         for rid, _, bbox in R.BOXES:
             m = R.box_mask(lats, lons, bbox)
-            series, stats = region_series(full, clim, lats, m, vid)
+            series, stats = region_series(full, clim, lats, m, vid, years_axis)
             region_rows[rid]["seasons"][season] = {"values": series.tolist(), "stats": stats}
             row = ranking_row(f, m, vid, stats)
             if row:
@@ -199,7 +202,7 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
         n_sig = int(np.sum(np.isfinite(f["q"]) & (f["q"] <= ALPHA)))
         print(f"  {vid} {season}: {time.time() - t0:.0f}s, {n_sig} significant cells", flush=True)
 
-    write_json(out / f"regions/{vid}.json", {"variable": vid, "years": YEARS.tolist(), "regions": list(region_rows.values())}, "regions")
+    write_json(out / f"regions/{vid}.json", {"variable": vid, "years": years_axis.tolist(), "regions": list(region_rows.values())}, "regions")
     entry = {
         "id": vid,
         "label": v["label"],

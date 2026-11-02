@@ -9,6 +9,7 @@ from td.fetch import (
     LATS,
     LONS,
     airs_to_half,
+    cci_to_half,
     cmg_to_half,
     coarsen_mean,
     gistemp_to_half,
@@ -19,6 +20,7 @@ from td.fetch import (
     month_keys,
     ndvi_to_half,
     omi_to_half,
+    omps_to_half,
     polar_to_half,
     polar_xy,
 )
@@ -58,6 +60,23 @@ def test_gistemp_bilinear_recovers_a_plane_wraps_and_fills_polar_rims():
     np.testing.assert_allclose(out[0], 89 + 1.0)  # 89.75°N takes the 89°N row
     field = np.where(la > 0, np.nan, 1.0)
     assert np.isnan(gistemp_to_half(field, lat, lon)[100]).all()  # gaps stay gaps
+
+
+def test_omps_is_flipped_to_north_first_and_fill_masked():
+    o3 = np.tile(np.arange(180, dtype=float)[:, None] + 200, (1, 360))  # row 0 = 89.5°S
+    o3[0, 0] = -1.2676506e30
+    out = omps_to_half(o3)
+    assert out.shape == (360, 720)
+    assert out[0, 0] == 379 and out[1, 1] == 379  # 89.75°N and 89.25°N come from 89.5°N
+    assert np.isnan(out[-1, 0]) and np.isnan(out[-2, 1]) and out[-1, 2] == 200
+
+
+def test_cci_quarter_degree_averages_to_half_ignoring_gaps():
+    sm = np.full((720, 1440), 0.2)
+    sm[0, 0] = np.nan
+    sm[0, 1] = 0.4
+    out = cci_to_half(sm)
+    assert out.shape == (360, 720) and out[0, 0] == pytest.approx((0.4 + 0.2 + 0.2) / 3) and out[5, 5] == pytest.approx(0.2)
 
 
 def test_imerg_is_transposed_flipped_and_converted():
