@@ -7,6 +7,21 @@
     line-height: 1.45;
     color: #e2e8f0;
     background: #02060d;
+
+    /* Tokens read by the Arc UI components in src/components/ui (scroll area, animated counter). */
+    --foreground: #a5f3fc;
+    --text-muted: #94a3b8;
+    --font-display: inherit;
+    --font-body: inherit;
+    --text-3xl: 1.875rem;
+    --tracking-display: -0.01em;
+    --tracking-body: 0;
+    --leading-body: 1.45;
+    --space-2: 0.5rem;
+    --radius-pill: 9999px;
+    --duration-fast: 0.16s;
+    --duration-considered: 0.48s;
+    --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   * {

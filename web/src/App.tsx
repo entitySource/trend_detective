@@ -8,7 +8,9 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { feature, mesh } from 'topojson-client'
 import type { GeometryCollection, Topology } from 'topojson-specification'
 import countries110m from 'world-atlas/countries-110m.json'
-import { AlertTriangle, ArrowLeft, ChevronRight, Clock, Crosshair, HelpCircle, Layers, Minus, Plus, Radar, Search, ShieldCheck, X } from 'lucide-react'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Clock, Crosshair, HelpCircle, Layers, Minus, Plus, Radar, Search, ShieldCheck, X } from 'lucide-react'
 import { DEFINITIONS, INTERESTS, SITES, type Site } from './command/content'
 import { VERDICT_COLOR, verdictOf, type Verdict } from './command/trend'
 import { dataUrl, type Manifest, type RegionsFile, type Season } from './contract'
@@ -81,6 +83,8 @@ export default function App() {
   const [season, setSeason] = useState<Season>('ANN')
   const [kind, setKind] = useState<LayerKind>('slope')
   const [projection, setProjection] = useState<'mercator' | 'globe'>('globe')
+  // The map controls fold into one pill so they never cover the map.
+  const [panelOpen, setPanelOpen] = useState(true)
   const [probe, setProbe] = useState<Probe>(null)
   const [siteId, setSiteId] = useState<string | null>(null)
   const [regions, setRegions] = useState<RegionsFile | null>(null)
@@ -335,7 +339,8 @@ export default function App() {
 
       <main className="relative z-10 flex min-h-0 flex-1 gap-3 p-3 max-lg:flex-col">
         {/* Left rail: find and pick a clue */}
-        <aside className="cc-glass flex shrink-0 flex-col gap-4 overflow-y-auto rounded-xl p-5 max-lg:max-h-[38vh] lg:w-80 2xl:w-96">
+        <aside className="cc-glass flex shrink-0 flex-col overflow-hidden rounded-xl max-lg:max-h-[38vh] lg:w-80 2xl:w-96">
+          <ScrollArea className="min-h-0 flex-1" viewportClassName="flex flex-col gap-4 p-5" label="Clues">
           <section>
             <h2 className="text-xs font-semibold tracking-[0.15em] text-cyan-400">CHOOSE A CLUE</h2>
             <p className="mt-1 text-sm leading-relaxed text-slate-400">Each clue is something NASA satellites measure. The map colours every 55 km square of Earth.</p>
@@ -417,6 +422,7 @@ export default function App() {
               </ul>
             </details>
           )}
+          </ScrollArea>
         </aside>
 
         {/* Map column: canvas with floating HUD controls, then the stats dock */}
@@ -437,74 +443,87 @@ export default function App() {
             </div>
 
             {/* Layer and time-of-year controls */}
-            <div className="cc-glass z-10 rounded-xl p-2.5 max-lg:order-1 max-lg:m-2 lg:absolute lg:top-3 lg:left-3 lg:max-w-[calc(100%-5rem)]">
-              <p className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold tracking-[0.15em] text-cyan-400">
-                <Layers className="h-3.5 w-3.5" /> WHAT THE COLOURS SHOW
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {LAYERS.filter((l) => l.id !== 'raw' || layer?.raw).map((l) => (
-                  <button
-                    key={l.id}
-                    onClick={() => setKind(l.id)}
-                    aria-pressed={kind === l.id}
-                    title={l.hint}
-                    className={`rounded-lg border px-3 py-1.5 text-sm transition ${kind === l.id ? 'border-cyan-300/70 bg-cyan-400/15 text-cyan-50 shadow-[0_0_12px_rgba(34,211,238,0.3)]' : 'border-slate-700/70 text-slate-300 hover:border-cyan-400/40'}`}
-                  >
-                    {l.label}
+            {panelOpen ? (
+              <div className="cc-glass z-10 rounded-xl p-2 max-lg:order-1 max-lg:m-2 lg:absolute lg:top-3 lg:left-3 lg:w-[300px]">
+                <div className="mb-1 flex items-center justify-between px-1">
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.15em] text-cyan-400">
+                    <Layers className="h-3.5 w-3.5" /> WHAT THE COLOURS SHOW
+                  </p>
+                  <button onClick={() => setPanelOpen(false)} className="rounded p-0.5 text-slate-500 transition hover:text-cyan-200 max-lg:hidden" aria-label="Fold the map controls away" title="Fold away">
+                    <ChevronUp className="h-4 w-4" />
                   </button>
-                ))}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {LAYERS.filter((l) => l.id !== 'raw' || layer?.raw).map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => setKind(l.id)}
+                      aria-pressed={kind === l.id}
+                      title={l.hint}
+                      className={`rounded-md border px-2 py-1 text-xs transition ${kind === l.id ? 'border-cyan-300/70 bg-cyan-400/15 text-cyan-50 shadow-[0_0_10px_rgba(34,211,238,0.3)]' : 'border-slate-700/70 text-slate-300 hover:border-cyan-400/40'}`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-center gap-2 px-1" title={projection === 'globe' ? 'True shapes and sizes everywhere, including the poles. Drag to turn it.' : 'Easy to scan, but stretches places near the poles.'}>
+                  <span className="w-11 shrink-0 text-[11px] font-semibold tracking-[0.12em] text-cyan-400">SHAPE</span>
+                  <SegmentedControl
+                    className="[&_[role=tab]]:py-1.5 [&_[role=tab]]:text-xs"
+                    compact={false}
+                    value={projection}
+                    onChange={(v) => setProjection(v as typeof projection)}
+                    options={[
+                      { value: 'mercator', label: 'Flat map' },
+                      { value: 'globe', label: 'Globe' },
+                    ]}
+                  />
+                </div>
+                <div className="mt-1.5 flex items-start gap-2 px-1">
+                  <span className="mt-1 w-11 shrink-0 text-[11px] font-semibold tracking-[0.12em] text-cyan-400">WHEN</span>
+                  <div className="flex flex-wrap gap-1">
+                    {manifest.seasons.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setSeason(s)}
+                        aria-pressed={s === season}
+                        className={`rounded-md border px-1.5 py-0.5 font-mono text-[11px] transition ${s === season ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-100' : 'border-slate-700/70 text-slate-400 hover:text-slate-200'}`}
+                      >
+                        {SEASON_LABEL[s]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <p className="mt-2 mb-1.5 px-1 text-xs font-semibold tracking-[0.15em] text-cyan-400">MAP SHAPE</p>
-              <div className="flex flex-wrap gap-1.5">
-                {(
-                  [
-                    { id: 'mercator', label: 'Flat map', hint: 'Easy to scan, but stretches places near the poles.' },
-                    { id: 'globe', label: 'Globe', hint: 'True shapes and sizes everywhere, including the poles. Drag to turn it.' },
-                  ] as const
-                ).map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => setProjection(o.id)}
-                    aria-pressed={projection === o.id}
-                    title={o.hint}
-                    className={`rounded-lg border px-2.5 py-1 text-xs transition ${projection === o.id ? 'border-cyan-300/60 bg-cyan-400/15 text-cyan-50' : 'border-slate-700/70 text-slate-400 hover:text-slate-200'}`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 mb-1.5 px-1 text-xs font-semibold tracking-[0.15em] text-cyan-400">TIME OF YEAR</p>
-              <div className="flex flex-wrap gap-1.5">
-                {manifest.seasons.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSeason(s)}
-                    aria-pressed={s === season}
-                    className={`rounded-lg border px-2.5 py-1 font-mono text-xs transition ${s === season ? 'border-emerald-400/60 bg-emerald-400/15 text-emerald-100' : 'border-slate-700/70 text-slate-400 hover:text-slate-200'}`}
-                  >
-                    {SEASON_LABEL[s]}
-                  </button>
-                ))}
-              </div>
-            </div>
+            ) : (
+              <button
+                onClick={() => setPanelOpen(true)}
+                className="cc-glass z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-cyan-100 transition hover:text-cyan-50 lg:absolute lg:top-3 lg:left-3"
+                aria-label="Show the map controls"
+              >
+                <Layers className="h-3.5 w-3.5 text-cyan-400" />
+                {LAYERS.find((l) => l.id === kind)?.label} · {SEASON_LABEL[season]}
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+              </button>
+            )}
 
             {/* Legend */}
-            <div className="cc-glass z-10 rounded-xl p-3 max-lg:order-3 max-lg:m-2 lg:absolute lg:bottom-3 lg:left-3 lg:w-72">
+            <div className="cc-glass z-10 rounded-xl p-2.5 max-lg:order-3 max-lg:m-2 lg:absolute lg:bottom-3 lg:left-3 lg:w-56">
               {kind === 'slope' ? (
                 <>
-                  <p className="text-xs font-semibold tracking-[0.15em] text-cyan-400">SPEED OF CHANGE</p>
-                  <div className="mt-2 h-2.5 rounded-full" style={{ background: `linear-gradient(90deg, ${variable.palette.join(', ')})` }} />
-                  <div className="mt-1 flex justify-between font-mono text-xs text-slate-400">
+                  <p className="text-[11px] font-semibold tracking-[0.15em] text-cyan-400">SPEED OF CHANGE</p>
+                  <div className="mt-1.5 h-2 rounded-full" style={{ background: `linear-gradient(90deg, ${variable.palette.join(', ')})` }} />
+                  <div className="mt-1 flex justify-between font-mono text-[11px] text-slate-400">
                     <span>{fmt(lo, 2)}</span>
                     <span>0</span>
                     <span>+{fmt(hi, 2)}</span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">{variable.trendUnits}</p>
+                  <p className="text-[11px] text-slate-500">{variable.trendUnits}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-xs font-semibold tracking-[0.15em] text-cyan-400">{kind === 'raw' ? 'EACH SPOT TESTED ALONE' : 'AFTER THE LUCK CHECK'}</p>
-                  <ul className="mt-2 space-y-1 text-sm text-slate-300">
+                  <p className="text-[11px] font-semibold tracking-[0.15em] text-cyan-400">{kind === 'raw' ? 'EACH SPOT TESTED ALONE' : 'AFTER THE LUCK CHECK'}</p>
+                  <ul className="mt-1.5 space-y-0.5 text-xs text-slate-300">
                     <li className="flex items-center gap-2">
                       <i className="h-3 w-3 rounded-sm" style={{ background: variable.palette.at(-1) }} /> Really rising
                     </li>
@@ -512,13 +531,13 @@ export default function App() {
                       <i className="h-3 w-3 rounded-sm" style={{ background: variable.palette[0] }} /> Really falling
                     </li>
                     <li className="flex items-center gap-2">
-                      <i className="h-3 w-3 rounded-sm border border-slate-600 bg-slate-800/60" /> Not proven: could be natural ups and downs
+                      <i className="h-3 w-3 rounded-sm border border-slate-600 bg-slate-800/60" /> Not proven (natural ups and downs?)
                     </li>
                   </ul>
                 </>
               )}
-              <p className="mt-2 flex items-center gap-1.5 border-t border-slate-700/60 pt-2 text-xs text-slate-400">
-                <span className="td-legend-node" /> Pulsing dots are investigation sites. Click one, or click anywhere on the map.
+              <p className="mt-1.5 flex items-center gap-1.5 border-t border-slate-700/60 pt-1.5 text-[11px] leading-snug text-slate-400">
+                <span className="td-legend-node shrink-0" /> Dots are sites. Click a dot or any spot.
               </p>
             </div>
 

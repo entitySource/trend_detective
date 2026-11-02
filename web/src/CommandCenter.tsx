@@ -4,6 +4,13 @@
 // regions/{var}.json, validation.json), so it shows real data as soon as the pipeline exports it.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatedCounter } from '@/components/ui/animated-counter'
+import { CinematicText } from '@/components/ui/cinematic-text'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { SegmentedControl } from '@/components/ui/segmented-control'
+import { SplitFlapDisplay } from '@/components/ui/split-flap-display'
+import { StreamingText } from '@/components/ui/streaming-text'
+import { TickSlider } from '@/components/ui/tick-slider'
 import { geoDistance, geoEquirectangular, geoGraticule10, geoInterpolate, geoOrthographic, geoPath, type GeoPermissibleObjects } from 'd3-geo'
 import { feature, mesh } from 'topojson-client'
 import type { GeometryCollection, Topology } from 'topojson-specification'
@@ -230,7 +237,11 @@ function Info({ text }: { text: string }) {
   )
 }
 
-function Ring({ value, label, sub, color, info }: { value: number; label: string; sub: string; color: string; info: string }) {
+// Ring centre readout as rolling odometer digits (Arc UI AnimatedCounter); sized through its CSS variables
+// because its module CSS is unlayered and would beat a Tailwind text-size class.
+const RING_COUNTER_VARS = { '--text-3xl': '0.875rem', '--foreground': '#f1f5f9' } as React.CSSProperties
+
+function Ring({ value, label, num, sub, color, info }: { value: number; label: string; num?: { value: number; decimals?: number; suffix?: string } | null; sub: string; color: string; info: string }) {
   const r = 30
   const c = 2 * Math.PI * r
   const v = Math.max(0, Math.min(1, value))
@@ -252,7 +263,9 @@ function Ring({ value, label, sub, color, info }: { value: number; label: string
             style={{ transition: 'stroke-dashoffset 0.9s ease', filter: `drop-shadow(0 0 4px ${color})` }}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-100">{label}</span>
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-100" style={RING_COUNTER_VARS}>
+          {num ? <AnimatedCounter value={num.value} decimals={num.decimals} suffix={num.suffix} animateOnView /> : label}
+        </span>
       </div>
       <div className="text-center text-xs tracking-widest text-slate-400 uppercase">
         {sub}
@@ -974,7 +987,8 @@ export default function CommandCenter() {
 
       <main className="relative z-10 flex min-h-0 flex-1 gap-3 p-3">
         {/* Left rail: variable, filters, sites, demos */}
-        <aside className="cc-glass flex w-80 shrink-0 flex-col gap-6 overflow-y-auto rounded-xl p-5 max-lg:hidden 2xl:w-96">
+        <aside className="cc-glass flex w-80 shrink-0 flex-col overflow-hidden rounded-xl max-lg:hidden 2xl:w-96">
+          <ScrollArea className="min-h-0 flex-1" viewportClassName="flex flex-col gap-6 p-5" label="Clues and places">
           <section>
             <h2 className="text-xs font-semibold tracking-[0.15em] text-cyan-400">STEP 1 · CHOOSE A CLUE</h2>
             <p className="mt-1 text-sm leading-relaxed text-slate-400">A clue is something NASA satellites measure every month. Pick one to see where on Earth it is changing.</p>
@@ -1050,19 +1064,17 @@ export default function CommandCenter() {
               ))}
             </div>
             <p className="mt-3 text-xs font-medium text-slate-500">Show places where {short.toLowerCase()} is…</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {(['all', 'rising', 'falling', 'noise'] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setVerdictFilter(v)}
-                  aria-pressed={verdictFilter === v}
-                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${verdictFilter === v ? 'border-cyan-300/60 bg-cyan-400/15 text-cyan-50' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
-                >
-                  {v !== 'all' && <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[v] }} />}
-                  {v === 'all' ? 'Anything' : v === 'noise' ? 'Not proven yet' : `Really ${v}`}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              className="mt-1.5 [&_[role=tab]]:gap-1 [&_[role=tab]]:px-1.5 [&_[role=tab]]:text-xs"
+              compact={false}
+              value={verdictFilter}
+              onChange={(v) => setVerdictFilter(v as typeof verdictFilter)}
+              options={(['all', 'rising', 'falling', 'noise'] as const).map((v) => ({
+                value: v,
+                label: v === 'all' ? 'All' : v === 'noise' ? 'Not proven' : v === 'rising' ? 'Rising' : 'Falling',
+                icon: v === 'all' ? undefined : <span className="h-2 w-2 rounded-full" style={{ background: VERDICT_COLOR[v], boxShadow: `0 0 6px ${VERDICT_COLOR[v]}` }} />,
+              }))}
+            />
           </section>
 
           <section>
@@ -1113,6 +1125,7 @@ export default function CommandCenter() {
               </button>
             ))}
           </section>
+          </ScrollArea>
         </aside>
 
         {/* Center stage: globe */}
@@ -1144,11 +1157,11 @@ export default function CommandCenter() {
 
           {/* Time machine: re-test on the data up to a chosen year */}
           <div
-            className={`cc-glass absolute bottom-3 left-1/2 w-[min(420px,calc(100%-120px))] -translate-x-1/2 rounded-lg px-3 py-2 transition-[left] duration-500 max-lg:bottom-14 max-lg:w-[calc(100%-24px)] ${!site && !demo ? 'lg:left-[calc((100%-21rem)/2)] lg:w-[min(420px,calc(100%-21rem-48px))] 2xl:left-[calc((100%-25rem)/2)] 2xl:w-[min(420px,calc(100%-25rem-48px))]' : ''}`}
+            className={`cc-glass absolute bottom-3 left-1/2 w-[min(340px,calc(100%-120px))] -translate-x-1/2 rounded-lg px-2.5 py-1.5 transition-[left] duration-500 max-lg:bottom-14 max-lg:w-[calc(100%-24px)] ${!site && !demo ? 'lg:left-[calc((100%-21rem)/2)] lg:w-[min(340px,calc(100%-21rem-48px))] 2xl:left-[calc((100%-25rem)/2)] 2xl:w-[min(340px,calc(100%-25rem-48px))]' : ''}`}
           >
-            <div className="flex items-center justify-between text-xs tracking-wider text-slate-400">
+            <div className="flex items-center justify-between gap-2 text-[11px] leading-none tracking-wider text-slate-400">
               <span>
-                TIME MACHINE · DATA UP TO <span className="font-mono text-cyan-200">{uptoYear}</span>
+                TIME MACHINE · DATA UP TO
                 <Info text={EXPLAIN.timeline} />
               </span>
               {truncated && (
@@ -1157,15 +1170,20 @@ export default function CommandCenter() {
                 </button>
               )}
             </div>
-            <input
-              type="range"
-              min={(years[0] ?? 2003) + 6}
-              max={lastYear}
-              value={uptoYear}
-              onChange={(e) => setUpto(Number(e.target.value) >= lastYear ? null : Number(e.target.value))}
-              className="mt-1 w-full accent-cyan-400"
-              aria-label="Use data up to this year"
-            />
+            <div className="mt-1 flex items-center gap-2">
+              <TickSlider
+                min={(years[0] ?? 2003) + 6}
+                max={lastYear}
+                value={uptoYear}
+                onChange={(y) => setUpto(y >= lastYear ? null : y)}
+                isMajorMark={(y) => y % 5 === 0}
+                label="Use data up to this year"
+                className="h-7 min-w-0 flex-1"
+              />
+              <span aria-live="polite" aria-label={`Data up to ${uptoYear}`} className="shrink-0">
+                <SplitFlapDisplay text={String(uptoYear)} columns={4} size="xs" showIndicators={false} characters=" 0123456789" flipSpeed={45} staggerDelay={60} className="rounded-md p-1" />
+              </span>
+            </div>
           </div>
 
           <div className="cc-glass absolute top-3 left-3 flex flex-col gap-1 rounded-lg px-3 py-2 text-xs tracking-wider text-slate-400 max-xl:hidden">
@@ -1186,7 +1204,8 @@ export default function CommandCenter() {
           </button>
 
           {!site && !demo && (
-            <div className="cc-glass cc-rise absolute top-3 right-3 max-h-[calc(100%-5.5rem)] w-80 overflow-y-auto rounded-xl p-5 max-lg:hidden 2xl:w-96">
+            <div className="cc-glass cc-rise absolute top-3 right-3 flex max-h-[calc(100%-5.5rem)] w-80 flex-col overflow-hidden rounded-xl max-lg:hidden 2xl:w-96">
+              <ScrollArea className="min-h-0 flex-1" viewportClassName="p-5" label="Your mission">
               <p className="text-xs font-semibold tracking-[0.15em] text-cyan-400">YOUR MISSION</p>
               <p className="mt-1 text-lg leading-snug font-semibold text-slate-50">Is {short.toLowerCase()} really changing, and where?</p>
               <p className="mt-1 text-sm leading-relaxed text-slate-400">Nature goes up and down all the time. Your job is to find changes that are real, not just luck.</p>
@@ -1220,6 +1239,7 @@ export default function CommandCenter() {
               >
                 <Play className="h-4 w-4" /> New here? Watch “{DEMOS[0].title}”
               </button>
+              </ScrollArea>
             </div>
           )}
 
@@ -1258,12 +1278,15 @@ export default function CommandCenter() {
         {site && (
           <aside
             key={site.id + varId}
-            className="cc-glass cc-slide absolute top-3 right-3 bottom-3 z-20 flex w-[min(440px,calc(100%-24px))] flex-col overflow-y-auto rounded-xl p-4 lg:static lg:w-[420px] 2xl:w-[460px] lg:shrink-0"
+            className="cc-glass cc-slide absolute top-3 right-3 bottom-3 z-20 flex w-[min(440px,calc(100%-24px))] flex-col overflow-hidden rounded-xl lg:static lg:w-[420px] 2xl:w-[460px] lg:shrink-0"
           >
+            <ScrollArea className="min-h-0 flex-1" viewportClassName="flex flex-col p-4" label="Case file">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-xs tracking-[0.2em] text-cyan-400">CASE FILE · {site.biome.toUpperCase()}</p>
-                <h2 className="cc-glow mt-0.5 text-lg leading-snug font-semibold text-cyan-50">{site.story.headline}</h2>
+                <CinematicText as="h2" delay={0.05} stagger={0.05} blur={12} className="cc-glow mt-0.5 text-lg leading-snug font-semibold text-cyan-50">
+                  {site.story.headline}
+                </CinematicText>
                 <p className="mt-0.5 font-mono text-[13px] text-slate-500">
                   <Crosshair className="mr-1 inline h-3 w-3" />
                   {site.name} · {fmtLat(site.lat)} {fmtLon(site.lon)}
@@ -1287,7 +1310,7 @@ export default function CommandCenter() {
               </div>
             </div>
 
-            <p className="mt-3 text-[15px] leading-relaxed text-slate-200">{site.story.takeaway}</p>
+            <StreamingText text={site.story.takeaway} delayChildren={0.35} staggerChildren={0.015} className="mt-3 text-[15px] leading-relaxed text-slate-200" />
 
             <details className="mt-3 rounded-lg border border-cyan-400/15 bg-slate-950/30 p-3">
               <summary className="cursor-pointer text-xs font-semibold tracking-[0.2em] text-cyan-400 select-none">BACKGROUND FILE · WHAT SCIENTISTS KNOW</summary>
@@ -1448,12 +1471,20 @@ export default function CommandCenter() {
                       <Ring
                         value={curStats.p === null ? 0 : 1 - curStats.p}
                         label={curStats.p === null ? '–' : `${Math.floor(100 * (1 - curStats.p))}%`}
+                        num={curStats.p === null ? null : { value: Math.floor(100 * (1 - curStats.p)), suffix: '%' }}
                         sub="Not luck (1 − p)"
                         color={VERDICT_COLOR[verdict]}
                         info={EXPLAIN.p}
                       />
-                      <Ring value={Math.min(1, Math.abs(curStats.snr ?? 0) / 2)} label={fmt(curStats.snr, 2)} sub="Trend vs. wobble" color="#22d3ee" info={EXPLAIN.snr} />
-                      <Ring value={years.length ? curStats.n / years.length : 0} label={`${curStats.n}`} sub="Years used" color="#34d399" info={EXPLAIN.years} />
+                      <Ring
+                        value={Math.min(1, Math.abs(curStats.snr ?? 0) / 2)}
+                        label={fmt(curStats.snr, 2)}
+                        num={curStats.snr === null ? null : { value: Number(fmt(curStats.snr, 2)), decimals: (fmt(curStats.snr, 2).split('.')[1] ?? '').length }}
+                        sub="Trend vs. wobble"
+                        color="#22d3ee"
+                        info={EXPLAIN.snr}
+                      />
+                      <Ring value={years.length ? curStats.n / years.length : 0} label={`${curStats.n}`} num={{ value: curStats.n }} sub="Years used" color="#34d399" info={EXPLAIN.years} />
                     </div>
 
                     <div className="space-y-3">
@@ -1508,6 +1539,7 @@ export default function CommandCenter() {
                 </div>
               </div>
             )}
+            </ScrollArea>
           </aside>
         )}
       </main>
