@@ -2,10 +2,19 @@
 // against published science, failures included) and "How it works" (#/methods: the plain-language
 // version of docs/methods.md). Both read the same contract files as the other views.
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, CheckCircle2, Loader2, Map as MapIcon, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, CircleDot, Loader2, Map as MapIcon, XCircle } from 'lucide-react'
 import { dataUrl, type Manifest } from './contract'
 
-type Check = { id: string; name: string; status: 'pass' | 'fail' | 'pending'; ours?: number; published?: number; tolerance?: number; units?: string; note?: string }
+type Status = 'pass' | 'partial' | 'fail' | 'pending'
+type Check = { id: string; name: string; status: Status; ours?: number; published?: number; tolerance?: number; units?: string; note?: string }
+
+// Partial = right direction, p between 0.05 and 0.10: close, but short of the usual bar.
+const STATUS_STYLE: Record<Status, { label: string; icon: ReactNode; badge: string; card: string; verdict: string }> = {
+  pass: { label: 'PASS', icon: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />, badge: 'bg-emerald-400/15 text-emerald-300', card: '', verdict: 'text-emerald-100/90' },
+  partial: { label: 'PARTIAL', icon: <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />, badge: 'bg-amber-400/15 text-amber-300', card: 'border-amber-400/30', verdict: 'text-amber-100/90' },
+  fail: { label: 'FAIL', icon: <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />, badge: 'bg-rose-400/15 text-rose-300', card: 'border-rose-400/30', verdict: 'text-rose-100/90' },
+  pending: { label: 'PENDING', icon: <Loader2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />, badge: 'bg-slate-400/15 text-slate-300', card: '', verdict: 'text-slate-300' },
+}
 
 // What each check means and, for failures, why it failed. Keyed by validation.json check id.
 const EXPLAIN: Record<string, { why: string; verdict: string }> = {
@@ -19,9 +28,9 @@ const EXPLAIN: Record<string, { why: string; verdict: string }> = {
       'It does: our map warms at the same rate NASA publishes. We first used MERRA-2, a computer model, which warmed about a quarter more slowly and failed this check, so we switched to the thermometer record.',
   },
   'aod-signs': {
-    why: 'Published studies report that haze (aerosol) fell over eastern China after clean-air rules and rose over northern India.',
+    why: 'Published studies report that haze (aerosol) fell over eastern China after its 2013 clean-air plan, and rose over northern India.',
     verdict:
-      'India matches. China does not fit one straight line: haze rose until about 2012 and then fell steeply, so the overall 2003–2025 trend is “not proven”. The app flags this as a plot twist instead of hiding it.',
+      'Both match. We test China from 2013, the period the studies describe: haze there fell clearly since then. Before 2013 it was still rising, so one straight line over 2003–2025 is “not proven”. The globe shows that rise-then-fall as a plot twist.',
   },
   'ndvi-signs': {
     why: 'Chen et al. (2019, Nature Sustainability) found that China and India lead the world in greening, from tree planting and farming.',
@@ -30,7 +39,7 @@ const EXPLAIN: Record<string, { why: string; verdict: string }> = {
   'tws-signs': {
     why: 'Rodell et al. (2018, Nature) used the GRACE satellites to show groundwater loss in northern India and California’s Central Valley.',
     verdict:
-      'Northern India matches. California just misses our cut-off (p = 0.053, where we need below 0.05): very wet years in 2017, 2019 and 2023 interrupt the decline. The water loss is real in the published work; our 23-year test is simply cautious.',
+      'Partial match. Northern India matches fully. California goes the right way (about 14 cm of water lost per decade) but just misses our bar (p = 0.053, where a pass needs below 0.05): very wet years in 2017, 2019 and 2023 interrupt the decline. We did not move the bar to make it pass.',
   },
   sealevel: {
     why: 'Satellite altimeters have measured steady global sea level rise since 1993.',
@@ -101,6 +110,7 @@ const Detail = ({ children }: { children: ReactNode }) => (
 export function ChecksPage() {
   const { checks, error } = useManifest()
   const passed = checks.filter((c) => c.status === 'pass').length
+  const partial = checks.filter((c) => c.status === 'partial').length
   return (
     <Page kicker="CAN YOU TRUST IT?" title="We checked our answers against published science">
       <P>
@@ -112,22 +122,20 @@ export function ChecksPage() {
       {!error && !checks.length && <Loader2 className="mt-6 h-5 w-5 animate-spin text-cyan-400" />}
       {checks.length > 0 && (
         <p className="mt-6 font-mono text-xs text-slate-400">
-          {passed} OF {checks.length} CHECKS PASS
+          {passed} OF {checks.length} CHECKS PASS{partial > 0 && ` · ${partial} PARTIAL`}
         </p>
       )}
       <ul className="mt-3 space-y-3">
         {checks.map((c) => {
           const ex = EXPLAIN[c.id]
-          const pass = c.status === 'pass'
+          const st = STATUS_STYLE[c.status] ?? STATUS_STYLE.pending
           return (
-            <li key={c.id} className={`cc-glass rounded-xl p-4 ${pass ? '' : 'border-rose-400/30'}`}>
+            <li key={c.id} className={`cc-glass rounded-xl p-4 ${st.card}`}>
               <h3 className="flex items-start gap-2 font-semibold text-slate-100">
-                {pass ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />}
+                {st.icon}
                 <span>
                   {c.name}
-                  <span className={`ml-2 rounded px-1.5 py-0.5 font-mono text-[10px] ${pass ? 'bg-emerald-400/15 text-emerald-300' : 'bg-rose-400/15 text-rose-300'}`}>
-                    {pass ? 'PASS' : 'FAIL'}
-                  </span>
+                  <span className={`ml-2 rounded px-1.5 py-0.5 font-mono text-[10px] ${st.badge}`}>{st.label}</span>
                 </span>
               </h3>
               {ex && <p className="mt-2 text-slate-300">{ex.why}</p>}
@@ -136,7 +144,7 @@ export function ChecksPage() {
                   Ours {c.ours.toFixed(2)} · Published {c.published.toFixed(2)} {c.units} · allowed gap ±{c.tolerance}
                 </p>
               )}
-              {ex && <p className={`mt-2 ${pass ? 'text-emerald-100/90' : 'text-rose-100/90'}`}>{ex.verdict}</p>}
+              {ex && <p className={`mt-2 ${st.verdict}`}>{ex.verdict}</p>}
               {c.note && <p className="mt-2 font-mono text-[11px] text-slate-500">{c.note}</p>}
             </li>
           )

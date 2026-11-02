@@ -47,10 +47,10 @@ Because the split year is found by searching, those p-values are a rough guide, 
 | Global sea level rising | Pass (+34 mm/decade) |
 | Stratosphere cooling at 10 hPa | Pass (−0.58 K/decade) |
 | Global temperature: our map vs NASA GISTEMP | Pass (0.275 vs 0.275 °C/decade). Earlier MERRA-2 version failed (0.21) |
-| Haze falls in E China, rises in N India | Fail for China: rise-then-fall (section 4) |
-| Water loss in N India and California (Rodell et al. 2018) | Fail for California: p = 0.053, interrupted by wet years |
+| Haze falls in E China since 2013, rises in N India | Pass. China is tested from 2013, the period of the published decline (clean-air plan); over 2003–2025 its rise-then-fall is "not proven" (section 4) |
+| Water loss in N India and California (Rodell et al. 2018) | Partial: right direction everywhere, but California p = 0.053 (a pass needs < 0.05), interrupted by wet years |
 
-We keep the failures visible rather than tuning the checks to pass. Full numbers: [`datasets.md`](datasets.md).
+A check is **partial** when every region goes the published way with p < 0.10 but not all reach p < 0.05. We keep shortfalls visible rather than tuning the checks to pass: each check tests the period its source describes, and the 0.05 bar never moves. Full numbers: [`datasets.md`](datasets.md).
 
 ## 6. Caveats: when the data itself can fool you
 

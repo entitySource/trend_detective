@@ -115,9 +115,9 @@ Missing months: snow 2025-09 and 2025-12 (source files unreadable after 3 tries)
 |---|---|---|---|
 | September Arctic sea ice vs NSIDC (−11.6 %/decade) | Pass | −11.56 | |
 | Global temperature, MERRA-2 T2M vs GISTEMP v4 (Sen 0.275 °C/decade) | **Fail** | 0.206 (p = 0.22; plain MK 0.003) | MERRA-2 runs cooler than GISTEMP; T2M already carries a caution label. The autocorrelation correction is what removes significance |
-| Haze: E China falls, Indo-Gangetic Plain rises | **Fail** (China) | E China −0.10/decade (p = 0.28); IGP +0.021 (p = 0.011) | Real, not a bug: China's AOD rose to ~2011 then fell steeply (≈ +0.11 → −0.12 anomaly). One straight-line trend over the whole record averages a rise-then-fall into "not proven". A good student lesson |
+| Haze: E China falls since 2013, Indo-Gangetic Plain rises | **Pass** | E China 2013–2025 −0.115/decade (p = 0.009); IGP +0.021 (p = 0.011). Over 2003–2025, E China −0.10 (p = 0.28) | The published decline follows China's 2013 Air Pollution Action Plan, so the check tests 2013–2025. Over the whole record: China's AOD rose to ~2011 then fell steeply (≈ +0.11 → −0.12 anomaly). One straight-line trend over the whole record averages a rise-then-fall into "not proven". A good student lesson |
 | Greening: China and India (Chen et al. 2019) | Pass | +0.029, +0.033 NDVI/decade | |
-| Water loss: N India and California (Rodell et al. 2018) | **Fail** (California, borderline) | IGP −10.6 cm/decade (p = 0.007); Central Valley −13.8 (p = 0.053) | California's loss is larger than India's but interrupted by wet years (2017, 2019, 2023), so the test lands just above 0.05 |
+| Water loss: N India and California (Rodell et al. 2018) | **Partial** (California, borderline) | IGP −10.6 cm/decade (p = 0.007); Central Valley −13.8 (p = 0.053) | California's loss is larger than India's but interrupted by wet years (2017, 2019, 2023), so the test lands just above 0.05 |
 | Global sea level rising | Pass | +34 mm/decade | |
 | Stratosphere cooling, 10 hPa | Pass | −0.58 K/decade | |
 

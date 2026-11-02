@@ -270,7 +270,7 @@ SCHEMAS: dict[str, dict] = {
                     "properties": {
                         "id": {"type": "string"},
                         "name": {"type": "string"},
-                        "status": {"enum": ["pass", "fail", "pending"]},
+                        "status": {"enum": ["pass", "partial", "fail", "pending"]},
                         "ours": _num,
                         "published": _num,
                         "tolerance": _num,

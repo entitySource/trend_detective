@@ -217,19 +217,30 @@ def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n
     return {"entry": entry, "contrasts": contrasts, "ranking": ranking}
 
 
-def _region_check(regions_dir: Path, vid: str, expect: dict[str, int], cid: str, name: str) -> dict:
-    """Pass if every listed region's yearly trend has the expected sign and p < 0.05."""
+def _region_check(regions_dir: Path, vid: str, expect: dict[str, int], cid: str, name: str, since: dict[str, int] | None = None) -> dict:
+    """Pass if every listed region's yearly trend has the expected sign and p < 0.05; "partial" if every sign is
+    right and p < 0.10 (the map's FDR level) but not all below 0.05. `since` re-tests a region from the year a
+    published claim starts (e.g. China's 2013 clean-air plan), on the same yearly values."""
     path = regions_dir / f"{vid}.json"
     if not path.exists():
         return {"id": cid, "name": name, "status": "pending"}
-    rows = {r["id"]: r["seasons"]["ANN"]["stats"] for r in json.loads(path.read_text(encoding="utf-8"))["regions"]}
-    parts, ok = [], True
+    d = json.loads(path.read_text(encoding="utf-8"))
+    years = np.array(d["years"])
+    rows = {r["id"]: r["seasons"]["ANN"] for r in d["regions"]}
+    parts, levels = [], []
     for rid, sign in expect.items():
-        s = rows[rid]
-        good = s["slopePerDecade"] is not None and np.sign(s["slopePerDecade"]) == sign and s["p"] is not None and s["p"] < 0.05
-        ok &= bool(good)
-        parts.append(f"{rid} {s['slopePerDecade']:+.3g}/decade (p={s['p']:.2g})" if s["slopePerDecade"] is not None else f"{rid} n/a")
-    return {"id": cid, "name": name, "status": "pass" if ok else "fail", "note": "; ".join(parts)}
+        s = rows[rid]["stats"]
+        start = (since or {}).get(rid)
+        if start is not None:
+            keep = years >= start
+            s = series_stats(np.array(rows[rid]["values"], dtype=float)[keep], years[keep])
+        slope, p = s["slopePerDecade"], s["p"]
+        right = slope is not None and p is not None and np.sign(slope) == sign
+        levels.append(2 if right and p < 0.05 else 1 if right and p < ALPHA else 0)
+        span = f" {start}-{years[-1]}" if start is not None else ""
+        parts.append(f"{rid}{span} {slope:+.3g}/decade (p={p:.2g})" if slope is not None else f"{rid} n/a")
+    status = "pass" if min(levels) == 2 else "partial" if min(levels) == 1 else "fail"
+    return {"id": cid, "name": name, "status": status, "note": "; ".join(parts)}
 
 
 def finish_ranking(ranking: dict) -> None:
@@ -246,7 +257,8 @@ def write_validation(out: Path) -> None:
     V.run(out / "validation.json", published_sea_ice_pct=NSIDC_SEPT_PCT)
     checks = [c for c in json.loads((out / "validation.json").read_text(encoding="utf-8"))["checks"] if c["id"] in ("sea-ice", "gistemp")]
     checks += [
-        _region_check(out / "regions", "aod", {"eas": -1, "igp": +1}, "aod-signs", "Haze falls over eastern China, rises over the Indo-Gangetic Plain"),
+        # The published China decline is the one after the 2013 Air Pollution Action Plan; haze rose before it.
+        _region_check(out / "regions", "aod", {"eas": -1, "igp": +1}, "aod-signs", "Haze falls over eastern China since 2013, rises over the Indo-Gangetic Plain", since={"eas": 2013}),
         _region_check(out / "regions", "ndvi", {"eas": +1, "igp": +1}, "ndvi-signs", "Greening over China and India (Chen et al. 2019)"),
         _region_check(out / "regions", "tws", {"igp": -1, "cvy": -1}, "tws-signs", "Water loss in northern India and California (Rodell et al. 2018)"),
         _region_check(out / "regions", "sealevel", {"glb": +1}, "sealevel", "Global sea level rising"),

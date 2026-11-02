@@ -19,6 +19,7 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  CircleDot,
   ChevronRight,
   Clock,
   Compass,
@@ -49,7 +50,7 @@ import { quickTrend, turningPoint, VERDICT_COLOR, VERDICT_TEXT, verdictOf, type 
 
 // ---------- Data and helpers ----------
 
-type Check = { id: string; name: string; status: 'pass' | 'fail' | 'pending'; note?: string }
+type Check = { id: string; name: string; status: 'pass' | 'partial' | 'fail' | 'pending'; note?: string }
 type Theme = 'night' | 'day'
 
 const topo = countries110m as unknown as Topology<{ countries: GeometryCollection; land: GeometryCollection }>
@@ -955,6 +956,7 @@ export default function CommandCenter() {
           <a href="#/checks" className="flex items-center gap-1.5 hover:text-cyan-200">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
             {passed} OF {checks.length} CHECKS PASSED
+            {checks.some((c) => c.status === 'partial') && <span className="text-amber-300">· {checks.filter((c) => c.status === 'partial').length} PARTIAL</span>}
           </a>
           <span className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${manifest.mock ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
             <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${manifest.mock ? 'bg-amber-400' : 'bg-emerald-400'}`} />
@@ -1551,7 +1553,15 @@ export default function CommandCenter() {
         </a>
         {checks.map((c) => (
           <span key={c.id} className="flex items-center gap-1" title={c.note}>
-            {c.status === 'pass' ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> : c.status === 'fail' ? <XCircle className="h-3 w-3 text-rose-400" /> : <Loader2 className="h-3 w-3 text-slate-500" />}
+            {c.status === 'pass' ? (
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+            ) : c.status === 'partial' ? (
+              <CircleDot className="h-3 w-3 text-amber-400" />
+            ) : c.status === 'fail' ? (
+              <XCircle className="h-3 w-3 text-rose-400" />
+            ) : (
+              <Loader2 className="h-3 w-3 text-slate-500" />
+            )}
             {c.name}
           </span>
         ))}
