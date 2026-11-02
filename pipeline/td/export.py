@@ -26,7 +26,7 @@ from . import validate as V
 from .colors import PALETTES, classes, ramp
 from .contract import CONTRACT_VERSION, OVERLAY_BOUNDS, PLANES, grid_spec, lat_lon, to_mercator, write_grid, write_json
 from .mock import catalogue
-from .stats import aggregate, bh_fdr, monthly_anomalies, series_stats, trend_field
+from .stats import MIN_VALID_YEARS_FRAC, aggregate, bh_fdr, monthly_anomalies, series_stats, trend_field
 
 ROOT = Path(__file__).resolve().parents[2]
 INTERIM = ROOT / "data" / "interim"
@@ -42,15 +42,19 @@ DISPLAY = {
     "airs": {"palette": "warm", "trend_units": "°C/decade"},
     "chlor": {"palette": "wet", "trend_units": "mg/m³ per decade"},
     "sealevel": {"palette": "wet", "trend_units": "mm/decade", "scale": 1000.0},
+    "soil": {"scale": 100.0},  # ESA CCI m³/m³ → % of soil volume
 }
 # Variables where "% of the usual level" makes sense (positive quantities with a meaningful zero).
 RELATIVE = {"precip", "ndvi", "aod", "no2", "chlor", "snow", "ozone"}
 # Long-term mean range (variable's units, here %) a cell needs to be mapped. Below it the thing is never there (open
 # ocean, snow-free tropics); above it it is always there (ice sheets). Either way the trend is a meaningless 0.
 PRESENT_RANGE = {"seaice": (1.0, 99.0), "snow": (1.0, 99.0)}
-# Model variables mapped only where an independent model agrees on the direction of change (data/interim/{partner}.npz):
-# GLDAS soil moisture vs MERRA-2 topsoil wetness, which disagree on 39% of land.
-AGREE_WITH = {"soil": "gwettop"}
+# Share of a region's data area that must have a steady record before the region gets a trend (see region_series).
+MIN_STEADY_SHARE = 0.25
+MIN_STEADY_CELLS = 20  # ≈ 60,000 km² of 0.5° cells
+# Model variables mapped only where an independent model agrees on the direction of change (data/interim/{partner}.npz).
+# Empty since soil moved from the GLDAS model (which disagreed with MERRA-2 on 39% of land) to ESA CCI measurements.
+AGREE_WITH: dict[str, str] = {}
 # NSIDC's published September Arctic sea-ice trend (% per decade vs 1981–2010), for the validation check.
 NSIDC_SEPT_PCT = -11.6
 
@@ -75,9 +79,19 @@ def _box_mean(cube: np.ndarray, lats: np.ndarray, mask: np.ndarray) -> np.ndarra
 
 
 def region_series(full: np.ndarray, clim: np.ndarray, lats: np.ndarray, mask: np.ndarray, vid: str, years: np.ndarray = YEARS) -> tuple[np.ndarray, dict]:
-    """One region's yearly series (box mean of the anomalies) and its trend stats, relative change where meaningful."""
+    """One region's yearly series (box mean of the anomalies) and its trend stats, relative change where meaningful.
+    No series when the cells with a steady record (the map's 90%-of-years rule) are under MIN_STEADY_SHARE of the box's
+    data area, or fewer than MIN_STEADY_CELLS (or a quarter of a small box): a few patchy edge cells (the ice-free
+    Greenland coast in soil moisture) would otherwise stand in for the whole box."""
     series = _box_mean(full, lats, mask)
     coslat = np.cos(np.radians(lats))[:, None]
+    finite = np.isfinite(full)
+    steady_cells = finite.mean(axis=0) >= MIN_VALID_YEARS_FRAC
+    w = coslat * mask
+    seen, steady = np.sum(w * finite.any(axis=0)), np.sum(w * steady_cells)
+    too_few = int(np.sum(mask & steady_cells)) < min(MIN_STEADY_CELLS, 0.25 * int(mask.sum()))
+    if seen > 0 and (steady < MIN_STEADY_SHARE * seen or too_few):
+        series = np.full_like(series, np.nan)
     cm = mask & np.isfinite(clim)
     c = float(np.sum(np.where(cm, clim, 0) * coslat) / np.sum(cm * coslat)) if cm.any() else float("nan")
     return series, series_stats(series, years, climatology=c if vid in RELATIVE and np.isfinite(c) and c > 0 else None)
@@ -152,14 +166,18 @@ def sig_layers(f: dict[str, np.ndarray], lats: np.ndarray, palette: str, out: Pa
         return {"raw": area(f["p"]), "fdr": area(f["q"])}
 
 
+def years_kept(v: dict) -> np.ndarray:
+    """A record that starts later or ends earlier (OMPS ozone from 2012, ESA CCI soil to 2024) is tested on its own years only."""
+    return (YEARS >= int(v.get("start_year", YEARS[0]))) & (YEARS <= int(v.get("end_year", YEARS[-1])))
+
+
 def export_variable(vid: str, v: dict, out: Path, grid: dict, seasons=SEASONS, n_jobs: int = -1) -> dict:
     """Trend layers, grids and regional series for one variable; returns its manifest entry plus contrast/ranking rows."""
     lats, lons = lat_lon(grid)
     disp = {**DISPLAY.get(vid, {}), **{k: v[k] for k in ("palette", "trend_units") if k in v}}
     anoms, years, months, clim = yearly_anomalies(vid)
     partner = yearly_anomalies(AGREE_WITH[vid]) if vid in AGREE_WITH else None
-    # A record that starts later (e.g. OMPS ozone, 2012) is tested on its own years only.
-    keep = YEARS >= int(v.get("start_year", YEARS[0]))
+    keep = years_kept(v)
     years_axis = YEARS[keep]
 
     palette = disp.get("palette", "warm")

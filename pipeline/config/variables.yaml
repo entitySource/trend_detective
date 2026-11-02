@@ -130,18 +130,20 @@ variables:
   soil:
     tier: 2
     sphere: hydrology
-    label: Soil moisture and evapotranspiration (GLDAS)
-    caution: "Model data. The map only colours places where two independent models (GLDAS and MERRA-2) agree on wetter or drier; elsewhere it is left blank. Site trends use GLDAS alone: Mediterranean and Amazon drying appear in both models, the global, Sahel and southern Africa drying do not."
-    product: GLDAS_NOAH025_M
-    version: "2.1"
-    daac: GES_DISC
-    var: SoilMoi0_10cm_inst
-    units: kg/m2
-    trend_units: "kg/m2 per decade"
+    label: Soil moisture (ESA CCI)
+    product: ESA CCI Soil Moisture COMBINED
+    version: "09.2"
+    daac: CEDA (no login)
+    url: https://dap.ceda.ac.uk/neodc/esacci/soil_moisture/data/daily_files/COMBINED/v09.2/{y}/ESACCI-SOILMOISTURE-L3S-SSMV-COMBINED-{date}000000-fv09.2.nc
+    var: sm
+    units: m3/m3
+    trend_units: "% of soil volume per decade"
     regrid: coarsen_2
     mask: land
     palette: wet
-    note: Replaces MERRA-2 GWETTOP. Also carries Evap_tavg for evapotranspiration.
+    end_year: 2024
+    validation: Mediterranean drying (also in both GLDAS and MERRA-2)
+    note: "Measured by satellite microwave sensors (active and passive merged), top ~5 cm, daily 0.25° fields averaged to months; v09.2 ends 2024. Replaced the GLDAS model, which disagreed with MERRA-2 on 39% of land (GLDAS dried globally at p < 0.01, MERRA-2 wetted the Sahel). CCI confirms the Mediterranean drying both models show and finds no proven global trend. Dense rainforest and frozen ground have gaps."
   seaice:
     tier: 2
     sphere: cryosphere

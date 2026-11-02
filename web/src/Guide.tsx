@@ -286,8 +286,9 @@ export function MethodsPage() {
         </li>
         <li>
           <strong className="text-slate-100">Models are not measurements.</strong> We first took air temperature from MERRA-2, a computer model, but it warmed a quarter
-          more slowly than thermometers, so the map now uses NASA’s thermometer record (GISTEMP). Soil moisture has no 23-year global measurement, so it still comes
-          from a model (GLDAS); two models agree on wetter or drier on only 61% of land, and the map shows only those places.
+          more slowly than thermometers, so the map now uses NASA’s thermometer record (GISTEMP). Soil moisture first came from a model too (GLDAS), but two models
+          agreed on wetter or drier on only 61% of land, so it now uses ESA’s satellite measurements (CCI, 2003 to 2024), which confirm the Mediterranean drying both
+          models show.
         </li>
         <li>
           <strong className="text-slate-100">Instruments age.</strong> A fault on the OMI ozone instrument since 2007 made ozone seem to rise. A model built partly on OMI

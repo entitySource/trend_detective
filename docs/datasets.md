@@ -79,7 +79,7 @@ Regional annual trends, 2003–2025, Sen slope with the vc Mann-Kendall test (`p
 | Sea-surface temp. (MODIS-Aqua day) | 276 | Ocean warming | +0.27 °C/decade (p = 0.07) | Pass (sign, size) |
 | Land surface temp. (MYD11C3 Aqua day; was MOD11C3 Terra, see below) | 276 | Arctic land warming fastest | Arctic +0.55 °C/decade (p = 0.003); global +0.24 (p = 0.024) | Pass (pattern) |
 | Snow cover (MOD10CM) | 271 of 273 | NH spring snow decline | −0.5 %-pts/decade (p = 0.39) | Weak; not significant |
-| Soil moisture (GLDAS 2.1) | 276 | No firm reference | Global topsoil drying −0.45 kg/m²/decade (p = 0.0001) | **Caution**: GLDAS 2.1 forcing changes can create trends |
+| Soil moisture (ESA CCI v09.2, used) | 264 (2003–2024) | Mediterranean drying in both GLDAS and MERRA-2 | Mediterranean −0.43 % vol/decade (p < 0.01); global −0.07 (p = 0.24, not proven) | No caution. Replaced GLDAS 2.1 (2 Nov 2026), whose global drying −0.45 kg/m²/decade (p = 0.0001) is not confirmed by CCI or MERRA-2 |
 | Stratosphere 10 hPa (AIRS) | 276 | CO2 cooling, published ≈ −0.5 to −0.6 K/decade | **−0.58 K/decade** (p < 0.0001); tropics −0.67 (p = 0.001) | Pass. Switched from 50 hPa on 29 Oct: 50 hPa was flat (−0.01 K/decade, p = 0.82) because ozone recovery offsets CO2 there |
 | Chlorophyll (MODIS-Aqua) | 276 | No robust global trend expected | +0.014 mg/m³/decade (p = 0.28) | Pass (flat) |
 | NO2 (OMI, tropospheric) | 255 (from Oct 2004) | Falling over Europe and the US (Krotkov et al. 2016) | Europe −0.33, eastern US −0.55 ×10¹⁵ molec/cm²/decade (p < 0.002) | Pass |
@@ -105,7 +105,7 @@ Missing months: snow 2025-09 and 2025-12 (source files unreadable after 3 tries)
 | Central US | −0.65 (0.10) | +0.001 (0.98) | no |
 | India | −0.04 (0.97) | +0.030 (0.09) | no |
 
-**Verdict:** the global drying in GLDAS 2.1 is not confirmed and is probably a forcing artefact. MERRA-2's Sahel wetting matches the published Sahel rainfall recovery. Mediterranean and Amazon drying are supported by both. Soil moisture keeps its caution label, now naming the regions that agree.
+**Verdict:** the global drying in GLDAS 2.1 is not confirmed and is probably a forcing artefact. MERRA-2's Sahel wetting matches the published Sahel rainfall recovery. Mediterranean and Amazon drying are supported by both. Soil moisture kept a caution label until 2 Nov 2026, when it moved to ESA CCI measurements (see the table above), which agree with both models where they agree with each other.
 
 ## Phase 2 export: checks against published records (30 Oct 2026)
 

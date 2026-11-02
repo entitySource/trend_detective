@@ -479,7 +479,7 @@ ROUTE_OF = {
     "tws": fetch_grace,
     "lst": lambda n, v, k: fetch_files(n, v, k, lambda p, var: _read_cmg(p, var, 0.02, (7500, 65535))),
     "snow": lambda n, v, k: fetch_files(n, v, k, lambda p, var: _read_cmg(p, var, 1.0, (0, 100))),
-    "soil": lambda n, v, k: fetch_opendap(n, v, k, f"/{v['var']};/lat;/lon", _gldas),
+    "soil": lambda n, v, k: fetch_cci(n, v, [m for m in k if m <= f"{v['end_year']}-12"]),
     "seaice": lambda n, v, k: fetch_files(n, v, k, _read_seaice, pattern=r"_[NS]25km_(\d{4})(\d{2})_v"),
     "sst": lambda n, v, k: fetch_files(n, v, k, _read_l3m),
     "no2": lambda n, v, k: fetch_opendap(n, v, k, "/HDFEOS/GRIDS/ColumnAmountNO2/Data_Fields/" + v["var"], _omi, pattern=_OMI_DAY, workers=4),

@@ -130,8 +130,9 @@ const NO_DATA_REASON: Record<string, (place: string) => string> = {
   seaice: (p) => `Sea ice only forms on cold oceans, and there is none at ${p}, so there is nothing to measure here.`,
   sealevel: (p) => `Sea level is measured over the open ocean, and ${p} is inland, so there is no sea to measure.`,
   ndvi: (p) => `Greenness measures plants, and ${p} is almost all ice and snow, so there are no plants to see.`,
-  soil: (p) => `Soil moisture needs soil, and ${p} is almost all ice, so the land model has nothing to measure.`,
-  chlor: (p) => `Plankton is seen in open, sunlit water. At ${p} there are too few clear years of measurements to test a trend.`,
+  soil: (p) => `Satellites can only measure soil moisture in unfrozen soil. ${p} is ice or frozen ground for much of the year, so too few places there have a steady record to test a trend.`,
+  chlor: (p) => `Plankton is seen in open, sunlit water. ${p} is mostly land or cloud, so too few spots have enough clear years to test a trend.`,
+  sst: (p) => `Ocean heat is measured at sea, and ${p} is inland: only a few lakes and rivers show up, too few to stand for the whole place.`,
 }
 const noDataReason = (vid: string, place: string) =>
   NO_DATA_REASON[vid]?.(place) ?? `The satellites do not have enough measurements at ${place} for this clue to test a trend.`
@@ -956,7 +957,7 @@ export default function CommandCenter() {
           <a href="#/checks" className="flex items-center gap-1.5 hover:text-cyan-200">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
             {passed} OF {checks.length} CHECKS PASSED
-            {checks.some((c) => c.status === 'partial') && <span className="text-amber-300">· {checks.filter((c) => c.status === 'partial').length} PARTIAL</span>}
+            {checks.some((c) => c.status === 'partial') && <span className="text-amber-300">&nbsp;· {checks.filter((c) => c.status === 'partial').length} PARTIAL</span>}
           </a>
           <span className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${manifest.mock ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
             <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${manifest.mock ? 'bg-amber-400' : 'bg-emerald-400'}`} />

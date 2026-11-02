@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from td import regions as R  # noqa: E402
 from td.contract import lat_lon, read_grid, write_json  # noqa: E402
-from td.export import YEARS, config, ranking_row, region_series, season_cube, yearly_anomalies  # noqa: E402
+from td.export import YEARS, config, ranking_row, region_series, season_cube, yearly_anomalies, years_kept  # noqa: E402
 
 OUT = Path(sys.argv[1]) if sys.argv[1:] else Path(__file__).resolve().parents[2] / "web" / "public" / "data"
 
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     for v in manifest["variables"]:
         vid = v["id"]
         anoms, years, months, clim = yearly_anomalies(vid)
-        keep = YEARS >= int(cfg[vid].get("start_year", YEARS[0]))  # same year axis as td.export.export_variable
+        keep = years_kept(cfg[vid])  # same year axis as td.export.export_variable
         rows = {rid: {"id": rid, "seasons": {}} for rid in masks}
         for season, layer in v["layers"].items():
             full = season_cube(anoms, years, months, season)[keep]
