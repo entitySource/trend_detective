@@ -34,7 +34,8 @@ export function quickTrend(values: number[], years: number[]): QuickTrend | null
   const resid = pts.map(([x, v]) => v - (intercept + slope * x))
   const sd = Math.sqrt(resid.reduce((a, r) => a + r * r, 0) / (n - 1))
   const totalChange = slope * (pts[n - 1][0] - pts[0][0])
-  return { slopePerDecade: slope * 10, p: 2 * (1 - normCdf(Math.abs(z))), n, totalChange, snr: sd > 0 ? totalChange / sd : 0 }
+  // Signal-to-noise as in the pipeline (td.stats.series_stats): change per decade ÷ scatter around the trend line.
+  return { slopePerDecade: slope * 10, p: 2 * (1 - normCdf(Math.abs(z))), n, totalChange, snr: sd > 0 ? (slope * 10) / sd : 0 }
 }
 
 export type TurningPoint = { year: number; before: QuickTrend; after: QuickTrend }

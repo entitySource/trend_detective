@@ -16,7 +16,9 @@ test.describe('globe', () => {
     await expect(page.getByText(/THE EVIDENCE: AIR TEMPERATURE/)).toBeVisible()
     await page.getByRole('button', { name: /^TEST IT/ }).click()
     await expect(page.getByText(/Case (closed|not proven)/)).toBeVisible()
-    await expect(page.getByText(/NOT LUCK \(1 − P\)/i)).toBeVisible()
+    for (const term of ['Statistical significance', 'Signal-to-noise ratio', 'Record length', 'Rate of change (Sen’s slope)', 'WHAT THE DATA TELLS US'])
+      await expect(page.getByText(term, { exact: true })).toBeVisible()
+    await expect(page.getByText(/per decade between \d{4} and \d{4}/)).toBeVisible()
   })
 
   test('case file downloads a described CSV of the series', async ({ page }) => {

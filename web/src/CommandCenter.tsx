@@ -2,9 +2,7 @@
 // trend test, two-site comparison, a timeline slider that re-tests on fewer years, a guided "what / where"
 // question flow and watchable demo cases. Reads the same contract files as the map view (manifest,
 // regions/{var}.json, validation.json), so it shows real data as soon as the pipeline exports it.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { AnimatedCounter } from '@/components/ui/animated-counter'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CinematicText } from '@/components/ui/cinematic-text'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { SegmentedControl } from '@/components/ui/segmented-control'
@@ -45,7 +43,9 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
+import { Info } from './components/Info'
 import { LoadError } from './components/LoadError'
+import { TrendReport } from './command/TrendReport'
 import { downloadText, seriesCsv, valueUnits } from './lib/csv'
 
 // The public address, written into downloads so a CSV says where it came from.
@@ -112,15 +112,13 @@ const fmt = (x: number | null | undefined, d = 3) => (x === null || x === undefi
 const fmtP = (p: number | null | undefined) => (p === null || p === undefined ? '= –' : p < 0.001 ? '< 0.001' : `= ${p.toFixed(3)}`)
 const fmtLat = (lat: number) => `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}`
 const fmtLon = (lon: number) => `${Math.abs(lon).toFixed(1)}°${lon >= 0 ? 'E' : 'W'}`
-// Units like "AOD/decade" read better spelled out.
-const perDecade = (u: string) => u.replace(/\s*\/\s*decade$/, ' every 10 years').replace(/ per decade$/, ' every 10 years')
 
 // Each step of the real method, in plain words (technical name in brackets for the curious).
 const STAGES = [
   'Collecting every year of satellite measurements',
   'Taking out the normal summer–winter swing (seasonal anomalies)',
   'Averaging over the whole region, one value per year',
-  'Asking: could a pattern like this happen by luck? (Mann-Kendall test)',
+  'Testing significance: how often would chance alone produce this pattern? (Mann-Kendall test)',
   'Measuring how fast it is changing (Sen’s slope)',
 ]
 
@@ -148,12 +146,6 @@ const PLACE_LABEL: Record<string, string> = Object.fromEntries(PLACES.map((p) =>
 
 const EXPLAIN = {
   chart: 'Each dot is one year: how far that year was above (up) or below (down) this place’s usual level. The bright line is the trend; the dashed lines show how uncertain its steepness is.',
-  p: 'The p-value is the chance of seeing a trend this strong if nothing were really changing. Below 0.05 (1 in 20) scientists call it “significant”. The ring shows 1 − p: fuller means less likely to be luck.',
-  snr: 'Trend vs. wobble: how big the change is compared with the normal year-to-year ups and downs. Above 1, the trend stands out from the noise.',
-  years: 'How many years had enough data to count. Years with too many missing months are left out.',
-  rate: 'How much the value changes every 10 years, if the trend carries on at the same speed.',
-  range: 'We are 95% sure the true speed lies between these two numbers. If the range crosses zero, we can’t even be sure of the direction.',
-  total: 'Speed × time: roughly how much the value changed across the years tested.',
   timeline: 'Pretend it is an earlier year and re-run the test on only the data up to then. Short records rarely prove anything; watch the verdict change as evidence piles up.',
   compare: 'Put two places side by side. Same variable, same years, same test: do they move the same way?',
 }
@@ -174,132 +166,6 @@ function readUrl(): UrlState {
 }
 
 // ---------- Small visual pieces ----------
-
-// The (?) popup is portalled to <body> with fixed positioning so scrolling panels (overflow) never clip it,
-// then nudged to stay inside the window: below the icon if it fits, otherwise above. It follows the icon
-// when a panel scrolls and closes once the icon leaves the window.
-const TIP_W = 256
-const TIP_GAP = 8
-
-function Info({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
-  const btn = useRef<HTMLButtonElement>(null)
-  const tip = useRef<HTMLSpanElement>(null)
-
-  useLayoutEffect(() => {
-    if (!open) return // a reopened popup is placed again here, before paint, so a stale position never shows
-    const place = () => {
-      const b = btn.current?.getBoundingClientRect()
-      const h = tip.current?.offsetHeight ?? 0
-      if (!b) return
-      const vw = window.innerWidth
-      const vh = window.innerHeight
-      if (b.bottom < 0 || b.top > vh) return setOpen(false)
-      const w = Math.min(TIP_W, vw - 2 * TIP_GAP)
-      const left = Math.max(TIP_GAP, Math.min(b.left + b.width / 2 - w / 2, vw - w - TIP_GAP))
-      const below = b.bottom + TIP_GAP
-      const top = below + h <= vh - TIP_GAP ? below : Math.max(TIP_GAP, b.top - TIP_GAP - h)
-      setPos({ left, top })
-    }
-    place()
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true) // capture: any scrolling panel moves the icon
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
-  return (
-    <>
-      <button
-        ref={btn}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        onBlur={() => setOpen(false)}
-        aria-label="What does this mean?"
-        aria-expanded={open}
-        className="ml-1 inline-flex h-4 w-4 shrink-0 -translate-y-px items-center justify-center rounded-full align-middle text-cyan-400/70 hover:text-cyan-200 focus-visible:text-cyan-200"
-      >
-        <HelpCircle className="h-3.5 w-3.5" />
-      </button>
-      {open &&
-        createPortal(
-          <span
-            ref={tip}
-            role="tooltip"
-            onMouseDown={(e) => e.preventDefault()} // keep focus on the button so clicking the text doesn't close it
-            style={{ position: 'fixed', left: pos?.left ?? 0, top: pos?.top ?? 0, width: Math.min(TIP_W, window.innerWidth - 2 * TIP_GAP), visibility: pos ? 'visible' : 'hidden' }}
-            aria-live="polite"
-            className="cc-glass z-[1000] block rounded-lg p-3 text-left text-[13px] leading-relaxed font-normal tracking-normal text-slate-200 normal-case shadow-xl shadow-black/50"
-          >
-            {text}
-          </span>,
-          document.body,
-        )}
-    </>
-  )
-}
-
-// Ring centre readout as rolling odometer digits (Arc UI AnimatedCounter); sized through its CSS variables
-// because its module CSS is unlayered and would beat a Tailwind text-size class.
-const RING_COUNTER_VARS = { '--text-3xl': '0.875rem', '--foreground': '#f1f5f9' } as React.CSSProperties
-
-function Ring({ value, label, num, sub, color, info }: { value: number; label: string; num?: { value: number; decimals?: number; suffix?: string } | null; sub: string; color: string; info: string }) {
-  const r = 30
-  const c = 2 * Math.PI * r
-  const v = Math.max(0, Math.min(1, value))
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative h-[76px] w-[76px]">
-        <svg width="76" height="76" viewBox="0 0 76 76" className="-rotate-90">
-          <circle cx="38" cy="38" r={r} fill="none" stroke="rgba(148,163,184,0.15)" strokeWidth="6" />
-          <circle
-            cx="38"
-            cy="38"
-            r={r}
-            fill="none"
-            stroke={color}
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={c}
-            strokeDashoffset={c * (1 - v)}
-            style={{ transition: 'stroke-dashoffset 0.9s ease', filter: `drop-shadow(0 0 4px ${color})` }}
-          />
-        </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-100" style={RING_COUNTER_VARS}>
-          {num ? <AnimatedCounter value={num.value} decimals={num.decimals} suffix={num.suffix} animateOnView /> : label}
-        </span>
-      </div>
-      <div className="text-center text-xs tracking-widest text-slate-400 uppercase">
-        {sub}
-        <Info text={info} />
-      </div>
-    </div>
-  )
-}
-
-function Bar({ label, value, max, color, text, info }: { label: string; value: number; max: number; color: string; text: string; info: string }) {
-  const pct = Math.max(2, Math.min(100, (Math.abs(value) / max) * 100))
-  return (
-    <div>
-      <div className="mb-1 flex justify-between gap-2 text-[13px] tracking-wider text-slate-400 uppercase">
-        <span>
-          {label}
-          <Info text={info} />
-        </span>
-        <span className="text-right font-mono text-slate-200 normal-case">{text}</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-800/80">
-        <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${pct}%`, background: color, boxShadow: `0 0 8px ${color}` }} />
-      </div>
-    </div>
-  )
-}
 
 type ChartSeries = { values: number[]; stats: Stats; color: string; label: string }
 
@@ -1473,72 +1339,17 @@ export default function CommandCenter() {
                 )}
 
                 {stage === 'done' && (
-                  <div className="cc-rise mt-4 space-y-4">
-                    <div className="flex items-start gap-3 rounded-lg border p-3" style={{ borderColor: `${VERDICT_COLOR[verdict]}66`, background: `${VERDICT_COLOR[verdict]}14` }}>
-                      {verdict === 'noise' ? <XCircle className="h-5 w-5 shrink-0 text-slate-300" /> : <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: VERDICT_COLOR[verdict] }} />}
-                      <div>
-                        <p className="text-sm font-semibold text-slate-100">
-                          {verdict === 'noise' ? 'Case not proven: this could just be natural ups and downs' : `Case closed: ${short.toLowerCase()} here is really ${verdict}`}
-                        </p>
-                        <p className="mt-1 text-sm leading-relaxed text-slate-300">
-                          {verdict === 'noise'
-                            ? `If nothing were really changing, a pattern like this would still turn up more than 1 time in 20 (p ${fmtP(curStats.p)}). Not enough evidence yet.`
-                            : `If nothing were really changing, a trend this strong would turn up less than 1 time in 20 (p ${fmtP(curStats.p)}). From ${years[0]} to ${uptoYear} it ${verdict === 'rising' ? 'went up' : 'went down'} by about ${fmt(Math.abs(curStats.totalChange ?? 0), 2)}${curStats.relChange != null ? ` (${Math.abs(100 * curStats.relChange).toFixed(0)}%)` : ''}.`}
-                        </p>
-                        {truncated && (
-                          <p className="mt-1 text-[13px] text-amber-200">
-                            Time machine on: a quick re-test on {curStats.n} years, without the correction for year-to-year memory, so treat it as a rough guide.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex justify-around">
-                      <Ring
-                        value={curStats.p === null ? 0 : 1 - curStats.p}
-                        label={curStats.p === null ? '–' : `${Math.floor(100 * (1 - curStats.p))}%`}
-                        num={curStats.p === null ? null : { value: Math.floor(100 * (1 - curStats.p)), suffix: '%' }}
-                        sub="Not luck (1 − p)"
-                        color={VERDICT_COLOR[verdict]}
-                        info={EXPLAIN.p}
-                      />
-                      <Ring
-                        value={Math.min(1, Math.abs(curStats.snr ?? 0) / 2)}
-                        label={fmt(curStats.snr, 2)}
-                        num={curStats.snr === null ? null : { value: Number(fmt(curStats.snr, 2)), decimals: (fmt(curStats.snr, 2).split('.')[1] ?? '').length }}
-                        sub="Trend vs. wobble"
-                        color="#22d3ee"
-                        info={EXPLAIN.snr}
-                      />
-                      <Ring value={years.length ? curStats.n / years.length : 0} label={`${curStats.n}`} num={{ value: curStats.n }} sub="Years used" color="#34d399" info={EXPLAIN.years} />
-                    </div>
-
-                    <div className="space-y-3">
-                      <Bar
-                        label="Speed of change"
-                        info={EXPLAIN.rate}
-                        value={curStats.slopePerDecade ?? 0}
-                        max={Math.max(Math.abs(curStats.ciLow ?? 0), Math.abs(curStats.ciHigh ?? 0), Math.abs(curStats.slopePerDecade ?? 0), 1e-9)}
-                        color={VERDICT_COLOR[verdict]}
-                        text={`${(curStats.slopePerDecade ?? 0) > 0 ? '+' : ''}${fmt(curStats.slopePerDecade)} ${perDecade(variable.trendUnits)}`}
-                      />
-                      {curStats.ciLow !== null && (
-                        <Bar label="Likely range" info={EXPLAIN.range} value={1} max={1} color="rgba(34,211,238,0.5)" text={`${fmt(curStats.ciLow)} to ${fmt(curStats.ciHigh)}`} />
-                      )}
-                      <Bar
-                        label={`Total change ${years[0]}–${uptoYear}`}
-                        info={EXPLAIN.total}
-                        value={Math.abs(curStats.slopePerDecade ?? 0)}
-                        max={Math.max(Math.abs(curStats.ciLow ?? 0), Math.abs(curStats.ciHigh ?? 0), Math.abs(curStats.slopePerDecade ?? 0), 1e-9)}
-                        color="#34d399"
-                        text={`${fmt(curStats.totalChange)}${curStats.relChange != null ? ` (${(100 * curStats.relChange).toFixed(0)}%)` : ''}`}
-                      />
-                    </div>
-                    <p className="text-xs leading-relaxed text-slate-500">
-                      For teachers: Mann-Kendall trend test with a correction for year-to-year memory (autocorrelation), Sen’s slope with a 95% interval, on regional yearly averages. The full map
-                      controls false discoveries across cells (FDR q ≤ {manifest.fdrAlpha}).
-                    </p>
-                  </div>
+                  <TrendReport
+                    stats={curStats}
+                    verdict={verdict}
+                    clue={short}
+                    place={site.name}
+                    units={valueUnits(variable.trendUnits)}
+                    from={years[0]}
+                    to={uptoYear}
+                    truncated={truncated}
+                    fdrAlpha={manifest.fdrAlpha}
+                  />
                 )}
               </>
             ) : (

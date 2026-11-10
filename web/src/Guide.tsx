@@ -193,7 +193,8 @@ export function MethodsPage() {
       </P>
       <P>
         The <strong className="text-slate-100">p-value</strong> is the chance of seeing a score this big if nothing were really changing. We call a trend real when p is
-        below 0.05: less than 1 chance in 20 that luck alone did it.
+        below 0.05: if nothing were changing, a trend this strong would turn up less than 1 time in 20. (It is not the chance that the trend is a fluke:
+        p assumes no change and asks how surprising the data would be.)
       </P>
       <P>
         How fast? We take the middle value of the slopes between every pair of years (<strong className="text-slate-100">Sen’s slope</strong>), shown per decade. Unlike a

@@ -13,6 +13,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Clock, Crosshair, HelpCircle, Layers, Minus, Plus, Radar, Search, ShieldCheck, X } from 'lucide-react'
 import { DEFINITIONS, INTERESTS, SITES, type Site } from './command/content'
 import { VERDICT_COLOR, verdictOf, type Verdict } from './command/trend'
+import { CompactReadings } from './command/TrendReport'
 import { LoadError } from './components/LoadError'
 import { dataUrl, fetchJson, type Manifest, type RegionsFile, type Season } from './contract'
 import { splitAtAntimeridian } from './lib/geo'
@@ -24,8 +25,8 @@ type Probe = { lat: number; lon: number; slope: number | null; p: number | null;
 const SEASON_LABEL: Record<Season, string> = { ANN: 'Whole year', DJF: 'Dec–Feb', MAM: 'Mar–May', JJA: 'Jun–Aug', SON: 'Sep–Nov' }
 const LAYERS: { id: LayerKind; label: string; hint: string }[] = [
   { id: 'slope', label: 'How fast it changes', hint: 'Colour shows the speed of change per decade, whether or not it is proven.' },
-  { id: 'raw', label: 'Real? Each spot alone', hint: 'Each cell tested on its own, with no correction for testing thousands of cells at once.' },
-  { id: 'class', label: 'Real? After the luck check', hint: 'Only cells that survive the correction for testing so many cells (false discovery rate).' },
+  { id: 'raw', label: 'Significant, each square alone', hint: 'Each cell tested on its own, with no correction for testing thousands of cells at once.' },
+  { id: 'class', label: 'Significant after FDR correction', hint: 'Only cells that survive the correction for testing so many cells (false discovery rate).' },
 ]
 const VERDICT_LABEL: Record<Verdict, string> = { rising: 'Really rising', falling: 'Really falling', noise: 'Not proven yet', unknown: 'No data here' }
 
@@ -47,35 +48,6 @@ const boxPolygon = ([w, s, e, n]: Site['bbox']): GeoJSON.Feature => ({
 // Percent with one decimal near 0 and 100, so 0.1% and 99.6% do not round to a misleading 0% and 100%.
 const pct = (x: number) => `${(x > 0 && x < 1) || (x > 99 && x < 100) ? x.toFixed(1) : x.toFixed(0)}%`
 const near = (s: Site, lat: number, lon: number) => Math.hypot(s.lat - lat, (s.lon - lon) * Math.cos((lat * Math.PI) / 180))
-
-// Circular gauge: how sure we are the change is not luck (1 − p).
-function Gauge({ value, label, sub, color }: { value: number; label: string; sub: string; color: string }) {
-  const r = 34
-  const c = 2 * Math.PI * r
-  return (
-    <div className="flex flex-col items-center">
-      <svg viewBox="0 0 84 84" className="h-24 w-24" role="img" aria-label={`${sub}: ${label}`}>
-        <circle cx="42" cy="42" r={r} fill="none" stroke="rgba(148,163,184,0.15)" strokeWidth="7" />
-        <circle
-          cx="42"
-          cy="42"
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={`${c * Math.max(0, Math.min(1, value))} ${c}`}
-          transform="rotate(-90 42 42)"
-          style={{ filter: `drop-shadow(0 0 6px ${color})`, transition: 'stroke-dasharray 0.6s ease' }}
-        />
-        <text x="42" y="47" textAnchor="middle" className="fill-slate-50 font-mono text-[15px] font-semibold">
-          {label}
-        </text>
-      </svg>
-      <p className="mt-1 text-center text-xs text-slate-400">{sub}</p>
-    </div>
-  )
-}
 
 export default function App() {
   const [manifest, setManifest] = useState<Manifest | null>(null)
@@ -576,9 +548,8 @@ export default function App() {
                           </p>
                           <p className="mt-1 text-xs text-slate-400">Average over the dashed box, one value per year.</p>
                         </div>
-                        <div className="mt-4 flex justify-around">
-                          <Gauge value={sStats.p === null ? 0 : 1 - sStats.p} label={sStats.p === null ? '–' : `${Math.floor(100 * (1 - sStats.p))}%`} sub="Sure it is not luck" color={VERDICT_COLOR[sVerdict]} />
-                          <Gauge value={Math.min(1, Math.abs(sStats.snr ?? 0) / 2)} label={fmt(sStats.snr, 2)} sub="Trend vs. wobble" color="#22d3ee" />
+                        <div className="mt-4">
+                          <CompactReadings p={sStats.p} snr={sStats.snr} color={VERDICT_COLOR[sVerdict]} scope="regional average" />
                         </div>
                       </>
                     ) : (
@@ -601,17 +572,14 @@ export default function App() {
                       {probe.slope !== null && (
                         <>
                           <p className="mt-3 rounded-lg border px-3 py-2 text-sm font-semibold" style={{ borderColor: `${VERDICT_COLOR[cellVerdict]}66`, color: VERDICT_COLOR[cellVerdict] }}>
-                            {cellReal ? 'A real change, not just luck' : 'Not proven: could be natural ups and downs'}
+                            {cellReal ? 'Statistically significant change' : 'Not significant: could be natural variation'}
                           </p>
-                          <div className="mt-4 flex justify-around">
-                            <Gauge value={probe.p === null ? 0 : 1 - probe.p} label={probe.p === null ? '–' : `${Math.floor(100 * (1 - probe.p))}%`} sub="Sure it is not luck (this square alone)" color={VERDICT_COLOR[cellVerdict]} />
-                            <Gauge value={Math.min(1, Math.abs(probe.snr ?? 0) / 2)} label={fmt(probe.snr, 2)} sub="Trend vs. wobble" color="#22d3ee" />
+                          <div className="mt-4">
+                            <CompactReadings p={probe.p} snr={probe.snr} color={VERDICT_COLOR[cellVerdict]} scope="this square alone" />
                           </div>
-                          <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 font-mono text-[13px]">
-                            <dt className="text-slate-500">Chance it is luck (p)</dt>
-                            <dd className="text-right text-slate-200">{fmt(probe.p)}</dd>
-                            <dt className="text-slate-500">After the luck check (q)</dt>
-                            <dd className="text-right text-slate-200">{fmt(probe.q)}</dd>
+                          <dl className="mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-[13px]">
+                            <dt className="text-slate-400">FDR-adjusted q-value (corrects for testing every square on the map)</dt>
+                            <dd className="text-right font-mono text-slate-200">{fmt(probe.q)}</dd>
                           </dl>
                         </>
                       )}
@@ -648,9 +616,9 @@ export default function App() {
           {/* Stats dock: real numbers for this clue and time of year */}
           <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: 'Looks real, each spot alone', value: sig ? pct(sig.raw) : '–', sub: 'of the mapped area', color: '#94a3b8' },
-              { label: 'Survives the luck check', value: sig ? pct(sig.fdr) : '–', sub: 'of the mapped area', color: '#22d3ee' },
-              { label: 'Could be flukes', value: sig && sig.raw > 0 ? pct(100 * (1 - sig.fdr / sig.raw)) : '–', sub: 'of the raw hotspots', color: '#fbbf24' },
+              { label: 'Significant, each square alone', value: sig ? pct(sig.raw) : '–', sub: 'of the mapped area', color: '#94a3b8' },
+              { label: 'Significant after FDR correction', value: sig ? pct(sig.fdr) : '–', sub: 'of the mapped area', color: '#22d3ee' },
+              { label: 'Likely false positives', value: sig && sig.raw > 0 ? pct(100 * (1 - sig.fdr / sig.raw)) : '–', sub: 'of the raw hotspots', color: '#fbbf24' },
               { label: `Sites, ${SEASON_LABEL[season].toLowerCase()}`, value: `${counts[0]} ▲ ${counts[1]} ▼`, sub: `${counts[2]} not proven of ${SITES.length}`, color: '#34d399' },
             ].map((c) => (
               <div key={c.label} className="cc-glass rounded-xl px-4 py-3">
