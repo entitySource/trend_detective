@@ -12,3 +12,8 @@ web/public/data/
 # Web
 node_modules/
 web/dist/
+web/playwright-report/
+web/test-results/
+
+# Crash dumps from Git Bash on Windows
+*.stackdump

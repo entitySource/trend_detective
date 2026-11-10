@@ -1,7 +1,7 @@
 import { lazy, StrictMode, Suspense, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import CommandCenter from './CommandCenter.tsx'
-import { ChecksPage, MethodsPage } from './Guide.tsx'
+import { ErrorBoundary } from './components/LoadError'
 import './command.css'
 import './index.css'
 
@@ -13,6 +13,13 @@ const App = lazy(async () => {
   setWorkerUrl(worker.default)
   return app
 })
+// The reading pages load on demand too, so the globe (the landing view) ships less code.
+const ChecksPage = lazy(() => import('./Guide.tsx').then((m) => ({ default: m.ChecksPage })))
+const MethodsPage = lazy(() => import('./Guide.tsx').then((m) => ({ default: m.MethodsPage })))
+
+const loading = (label: string) => (
+  <div className="cc-grid flex h-screen items-center justify-center font-mono tracking-[0.3em] text-cyan-300">{label}</div>
+)
 
 // Views over the same data: the globe command center (default), the detailed trend map (#/map), and the
 // reading pages on how it works (#/methods) and how it compares with published science (#/checks).
@@ -23,14 +30,20 @@ function Root() {
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
   }, [])
-  if (hash === '#/checks') return <ChecksPage />
-  if (hash === '#/methods') return <MethodsPage />
-  return hash === '#/map' ? (
-    <Suspense fallback={<div className="cc-grid flex h-screen items-center justify-center font-mono tracking-[0.3em] text-cyan-300">LOADING MAP…</div>}>
-      <App />
-    </Suspense>
-  ) : (
-    <CommandCenter />
+  const view = hash === '#/checks' || hash === '#/methods' || hash === '#/map' ? hash : '#/'
+  // Keyed by view: a crash (or a lazy chunk that fails to download) is contained to that view, and leaving it resets.
+  return (
+    <ErrorBoundary key={view}>
+      {view === '#/checks' || view === '#/methods' ? (
+        <Suspense fallback={loading('LOADING…')}>{view === '#/checks' ? <ChecksPage /> : <MethodsPage />}</Suspense>
+      ) : view === '#/map' ? (
+        <Suspense fallback={loading('LOADING MAP…')}>
+          <App />
+        </Suspense>
+      ) : (
+        <CommandCenter />
+      )}
+    </ErrorBoundary>
   )
 }
 

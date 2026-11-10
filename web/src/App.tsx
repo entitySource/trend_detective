@@ -13,7 +13,8 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, ChevronUp, Clock, Crosshair, HelpCircle, Layers, Minus, Plus, Radar, Search, ShieldCheck, X } from 'lucide-react'
 import { DEFINITIONS, INTERESTS, SITES, type Site } from './command/content'
 import { VERDICT_COLOR, verdictOf, type Verdict } from './command/trend'
-import { dataUrl, type Manifest, type RegionsFile, type Season } from './contract'
+import { LoadError } from './components/LoadError'
+import { dataUrl, fetchJson, type Manifest, type RegionsFile, type Season } from './contract'
 import { splitAtAntimeridian } from './lib/geo'
 import { cellIndex, loadGrid, readCell } from './lib/grid'
 
@@ -97,11 +98,7 @@ export default function App() {
   const searchEl = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch(dataUrl('manifest.json'))
-      .then((r) => {
-        if (!r.ok) throw new Error(`manifest.json: HTTP ${r.status}. Run pipeline/scripts/make_mock.py first.`)
-        return r.json() as Promise<Manifest>
-      })
+    fetchJson<Manifest>('manifest.json')
       .then((m) => {
         setManifest(m)
         setVarId(m.variables[0].id)
@@ -138,8 +135,7 @@ export default function App() {
   useEffect(() => {
     if (!variable) return
     let live = true
-    fetch(dataUrl(variable.regions))
-      .then((r) => r.json() as Promise<RegionsFile>)
+    fetchJson<RegionsFile>(variable.regions)
       .then((f) => live && setRegions(f))
       .catch(() => live && setRegions(null))
     return () => {
@@ -281,7 +277,7 @@ export default function App() {
     }
   }, [manifest, layer])
 
-  if (error) return <p className="cc-grid flex h-screen items-center justify-center p-6 text-rose-300">{error}</p>
+  if (error) return <LoadError detail={error} />
   if (!manifest || !variable) return <div className="cc-grid flex h-screen items-center justify-center font-mono tracking-[0.3em] text-cyan-300">LOADING MAP…</div>
 
   const def = DEFINITIONS[varId]

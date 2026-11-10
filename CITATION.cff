@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use Trend Detective or its results, please cite it as below."
+title: "Trend Detective: real or random? Earth trends from NASA satellite data"
+type: software
+authors:
+  - family-names: Jain
+    given-names: Vinayak
+version: 1.0.0
+date-released: 2026-11-10
+license: MIT
+repository-code: "https://github.com/entitySource/trend_detective"
+url: "https://entitysource.github.io/trend_detective/"
+abstract: >-
+  An interactive web app for NASA Space Apps 2026 (Challenge 2, Be An Earth System Trend Detective). It tests 15
+  satellite and measurement records (2003–2025) for real trends, with Mann-Kendall tests corrected for
+  autocorrelation, Sen's slope and false-discovery-rate control across map cells, and checks its results against
+  published science.
+keywords:
+  - climate
+  - remote sensing
+  - trend detection
+  - Mann-Kendall
+  - NASA Earthdata
+  - education

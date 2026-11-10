@@ -3,7 +3,8 @@
 // version of docs/methods.md). Both read the same contract files as the other views.
 import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowLeft, CheckCircle2, CircleDot, Loader2, Map as MapIcon, XCircle } from 'lucide-react'
-import { dataUrl, type Manifest } from './contract'
+import { DEFINITIONS } from './command/content'
+import { fetchJson, type Manifest } from './contract'
 
 type Status = 'pass' | 'partial' | 'fail' | 'pending'
 type Check = { id: string; name: string; status: Status; ours?: number; published?: number; tolerance?: number; units?: string; note?: string }
@@ -56,14 +57,10 @@ function useManifest() {
   const [checks, setChecks] = useState<Check[]>([])
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
-    fetch(dataUrl('manifest.json'))
-      .then((r) => {
-        if (!r.ok) throw new Error(`manifest.json: HTTP ${r.status}`)
-        return r.json() as Promise<Manifest>
-      })
+    fetchJson<Manifest>('manifest.json')
       .then(async (m) => {
         setManifest(m)
-        const val = await fetch(dataUrl(m.files.validation)).then((r) => r.json())
+        const val = await fetchJson<{ checks?: Check[] }>(m.files.validation)
         setChecks(val.checks ?? [])
       })
       .catch((e: Error) => setError(e.message))
@@ -308,10 +305,29 @@ export function MethodsPage() {
 
       <H2>6 · Did we get it right?</H2>
       <P>
-        We checked our results against seven published findings and kept the failures visible. See{' '}
+        We checked our results against seven published findings and keep every shortfall visible. See{' '}
         <a href="#/checks" className="text-cyan-300 underline">
           Can you trust it?
         </a>
+      </P>
+
+      <H2>7 · Data sources, credits and how to cite</H2>
+      <P>Every number comes from public satellite and measurement records. Thank you to the teams who collect and share them:</P>
+      <ul className="mt-3 grid gap-1 text-sm text-slate-300 sm:grid-cols-2">
+        {Object.entries(DEFINITIONS).map(([id, d]) => (
+          <li key={id}>
+            <span className="text-slate-100">{d.short}</span>: {d.source}
+          </li>
+        ))}
+      </ul>
+      <P>
+        The app is built with React, MapLibre GL, d3-geo and Natural Earth borders (world-atlas), with interface components adapted from Space UI, Componentry,
+        Planes, Skecher UI and Arc UI. The code is open source under the MIT licence; each dataset keeps its provider’s terms (NASA data are open; ESA CCI data
+        are CC BY 4.0, credited above).
+      </P>
+      <P>
+        To cite a finding, use the <strong className="text-slate-100">CSV</strong> button in any case file: the file carries the values, the trend, the data
+        source and this citation: <span className="font-mono text-sm text-slate-200">Trend Detective (2026), NASA Space Apps Challenge, https://entitysource.github.io/trend_detective/</span>.
       </P>
     </Page>
   )

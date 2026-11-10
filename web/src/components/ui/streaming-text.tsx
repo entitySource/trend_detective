@@ -38,8 +38,9 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
       initial="hidden"
       animate="visible"
       variants={{ visible: { transition: { staggerChildren, delayChildren } }, hidden: {} }}
-      aria-label={text}
     >
+      {/* aria-label is not allowed on a plain <p>, so screen readers get the sentence once from a hidden copy. */}
+      <span className="sr-only">{text}</span>
       {words.map((word, i) => (
         <motion.span
           key={i}

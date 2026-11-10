@@ -76,10 +76,8 @@ export function SegmentedControl({
     (v) => `blur(${Math.min(Math.abs(v) * 0.011, 5)}px)`
   );
 
-  const [isSafari, setIsSafari] = React.useState(false);
-  React.useEffect(() => {
-    setIsSafari(/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
-  }, []);
+  // Client-only app, so the user agent can be read once at mount instead of in an effect.
+  const [isSafari] = React.useState(() => typeof navigator !== "undefined" && /^((?!chrome|android).)*safari/i.test(navigator.userAgent));
 
   const [ready, setReady] = React.useState(false);
   const [sepPositions, setSepPositions] = React.useState<number[]>([]);

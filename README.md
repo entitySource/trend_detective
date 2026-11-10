@@ -1,17 +1,36 @@
 # Trend Detective
 
+[![CI](https://github.com/entitySource/trend_detective/actions/workflows/ci.yml/badge.svg)](https://github.com/entitySource/trend_detective/actions/workflows/ci.yml)
+[![Live site](https://img.shields.io/badge/live-entitysource.github.io%2Ftrend__detective-22d3ee)](https://entitysource.github.io/trend_detective/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Our NASA Space Apps 2026 entry for **Challenge 2: Be An Earth System Trend Detective**. Pick a NASA variable, a season and a place, and see what is changing, where, how much, and whether it is statistically significant. The tool corrects for autocorrelation and for testing thousands of map cells at once. Its hook is "same variable, opposite story": the same measure rising in one region and falling in another.
+
+**Live:** https://entitysource.github.io/trend_detective/ · 15 clues, 23 places, 2003–2025 · 6 of 7 checks against published science pass, 1 partial ([`#/checks`](https://entitysource.github.io/trend_detective/#/checks)).
 
 The plan is [`../PLAN-02-earth-trend-detective.md`](../PLAN-02-earth-trend-detective.md).
 
-## Status: Phase 0 (setup), 25 Oct 2026
+## Quality
 
-- [x] All 5 NASA products confirmed in CMR, with granule counts, and both validation CSVs reachable. See [`docs/datasets.md`](docs/datasets.md), including the 3 findings that change the plan.
-- [x] Output data contract fixed. See [`docs/data-contract.md`](docs/data-contract.md).
-- [x] Mock-data generator writes the full contract, so the web app can be built without real data.
-- [x] Web app: MapLibre map with trend and significance overlays, a variable and season picker, and a click readout of slope, p, q and SNR.
-- [ ] **Needs people:** Earthdata accounts, plus opening one real granule per product (see `docs/datasets.md` "Still to check").
-- [ ] Phase 1: `fetch.py` / `preprocess.py`, the per-cell Hamed–Rao engine, and the sea-ice validation.
+Every push and pull request runs [CI](.github/workflows/ci.yml):
+
+| Check | What it covers |
+|---|---|
+| Pipeline tests (`pytest`, 41) | statistics engine, regridding, the data contract, export rules, check statuses |
+| Web unit tests (`vitest`) | geometry, grid reading, CSV export |
+| Lint + types (`oxlint`, `tsc`) | the whole web app |
+| Browser journeys (Playwright, on mock data) | pick a clue → open a place → test it; time machine; CSV download; help popups; trend map; checks and methods pages; phone width; failure screens |
+| Accessibility gate (axe-core) | no WCAG 2.1 AA violations on any page, including an open case file |
+
+Run them locally:
+
+```bash
+cd pipeline && .venv/Scripts/python -m pytest
+cd web && npm run lint && npm run typecheck && npm test
+cd web && npm run build && npm run e2e   # first time: npx playwright install chromium
+```
+
+Each case file has a **CSV** button (yearly values, trend, source and citation); data sources and credits are on the How it works page. Cite with [`CITATION.cff`](CITATION.cff).
 
 ## Phase 2 (real trends), 30 Oct 2026
 
@@ -47,7 +66,7 @@ python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt   # macOS/Linux: .venv/bin/python
 .venv/Scripts/python -m pytest
 .venv/Scripts/python scripts/check_datasets.py
-.venv/Scripts/python scripts/make_mock.py
+.venv/Scripts/python scripts/make_mock.py            # REPLACES web/public/data with mock data; use --out <dir> to keep a real export
 .venv/Scripts/python scripts/run_all.py              # everything: fetch (resumable) + export real data
 .venv/Scripts/python scripts/run_all.py --skip-fetch # recompute from data/interim only (~90 min)
 .venv/Scripts/python scripts/add_regions.py          # after adding a site to td/regions.py: regional series only (minutes)

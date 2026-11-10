@@ -29,6 +29,7 @@ import {
   GitCompare,
   Globe2,
   HelpCircle,
+  Download,
   Link2,
   Loader2,
   Map as MapIcon,
@@ -44,7 +45,12 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
-import { dataUrl, type Manifest, type RegionSeries, type RegionsFile } from './contract'
+import { LoadError } from './components/LoadError'
+import { downloadText, seriesCsv, valueUnits } from './lib/csv'
+
+// The public address, written into downloads so a CSV says where it came from.
+const SITE_URL = 'https://entitysource.github.io/trend_detective/'
+import { fetchJson, type Manifest, type RegionSeries, type RegionsFile } from './contract'
 import { DEFINITIONS, DEMOS, INTERESTS, LEADS, PLACES, SITES, type Biome, type Site } from './command/content'
 import { quickTrend, turningPoint, VERDICT_COLOR, VERDICT_TEXT, verdictOf, type Verdict } from './command/trend'
 
@@ -182,7 +188,7 @@ function Info({ text }: { text: string }) {
   const tip = useRef<HTMLSpanElement>(null)
 
   useLayoutEffect(() => {
-    if (!open) return setPos(null)
+    if (!open) return // a reopened popup is placed again here, before paint, so a stale position never shows
     const place = () => {
       const b = btn.current?.getBoundingClientRect()
       const h = tip.current?.offsetHeight ?? 0
@@ -761,17 +767,14 @@ export default function CommandCenter() {
   }, [])
 
   useEffect(() => {
-    fetch(dataUrl('manifest.json'))
-      .then((r) => {
-        if (!r.ok) throw new Error(`manifest.json: HTTP ${r.status}. Run pipeline/scripts/make_mock.py first.`)
-        return r.json() as Promise<Manifest>
-      })
+    fetchJson<Manifest>('manifest.json')
       .then(async (m) => {
         setManifest(m)
         setVarId((v) => (m.variables.some((x) => x.id === v) ? v : m.variables[0].id))
-        const files = await Promise.all(m.variables.map((v) => fetch(dataUrl(v.regions)).then((r) => r.json() as Promise<RegionsFile>)))
+        const files = await Promise.all(m.variables.map((v) => fetchJson<RegionsFile>(v.regions)))
         setRegions(Object.fromEntries(files.map((f) => [f.variable, f])))
-        const val = await fetch(dataUrl(m.files.validation)).then((r) => r.json())
+        // The checks strip is optional: a missing validation file must not take the globe down with it.
+        const val = await fetchJson<{ checks?: Check[] }>(m.files.validation).catch(() => ({ checks: [] }))
         setChecks(val.checks ?? [])
       })
       .catch((e: Error) => setError(e.message))
@@ -925,7 +928,7 @@ export default function CommandCenter() {
       (!place || SITES.find((s) => s.id === l.siteId)?.biome === place),
   )
 
-  if (error) return <div className="cc-grid flex h-screen items-center justify-center p-6 font-mono text-rose-300">{error}</div>
+  if (error) return <LoadError detail={error} />
   const variable = manifest?.variables.find((v) => v.id === varId)
   if (!manifest || !variable) return <div className="cc-grid flex h-screen items-center justify-center font-mono tracking-[0.3em] text-cyan-300">INITIALISING…</div>
   const short = def?.short ?? variable.label
@@ -1357,6 +1360,27 @@ export default function CommandCenter() {
                       THE EVIDENCE: {short.toUpperCase()} EACH YEAR VS. NORMAL
                       <Info text={EXPLAIN.chart} />
                     </span>
+                    <button
+                      onClick={() =>
+                        downloadText(
+                          `trend-detective_${varId}_${site.id}.csv`,
+                          seriesCsv({
+                            clue: variable.label,
+                            place: site.name,
+                            source: def?.source ?? variable.label,
+                            units: valueUnits(variable.trendUnits),
+                            years,
+                            values: cur.values,
+                            stats: cur.stats,
+                            url: SITE_URL,
+                          }),
+                        )
+                      }
+                      className="flex items-center gap-1 rounded px-1 text-cyan-300 normal-case transition hover:text-cyan-100"
+                      title="Download every year's value, the trend and how to cite it, as a spreadsheet file"
+                    >
+                      <Download className="h-3.5 w-3.5" /> CSV
+                    </button>
                     {cmpSite && (
                       <span className="flex items-center gap-2 normal-case">
                         <span className="text-cyan-300">● {site.name}</span>

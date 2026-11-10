@@ -54,3 +54,19 @@ export type RegionSeries = { values: number[]; stats: TrendStats }
 export type RegionsFile = { variable: string; years: number[]; regions: { id: string; seasons: Record<string, RegionSeries> }[] }
 
 export const dataUrl = (path: string) => `${import.meta.env.BASE_URL}data/${path}`
+
+// Fetch one data file as JSON; failures name the file (a missing file otherwise surfaces as "Unexpected token <").
+export async function fetchJson<T>(path: string): Promise<T> {
+  let r: Response
+  try {
+    r = await fetch(dataUrl(path))
+  } catch {
+    throw new Error(`${path}: network error (offline?)`)
+  }
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`)
+  try {
+    return (await r.json()) as T
+  } catch {
+    throw new Error(`${path}: not valid JSON`)
+  }
+}

@@ -1,0 +1,88 @@
+# Checks on every push and pull request: pipeline tests, web lint/types/unit tests/build, and browser journeys
+# against the mock dataset (the real 300 MB export is not in git, so deploys stay with scripts/deploy_pages.sh).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    name: Pipeline tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - name: HDF4 headers (for pyhdf)
+        run: sudo apt-get update && sudo apt-get install -y libhdf4-dev
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  web:
+    name: Web lint, types, unit tests, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    name: Browser journeys (mock data)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - name: HDF4 headers (for pyhdf)
+        run: sudo apt-get update && sudo apt-get install -y libhdf4-dev
+      - run: pip install -r pipeline/requirements.txt
+      - name: Mock dataset into web/public/data
+        run: python pipeline/scripts/make_mock.py --seasons ANN JJA
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - run: npm run e2e
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 7
